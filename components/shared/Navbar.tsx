@@ -13,6 +13,7 @@ import {
   Code2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import CommandPalette from "./CommandPalette";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Snippet = {
@@ -24,29 +25,34 @@ type Snippet = {
 
 // ── Mock data ─────────────────────────────────────────────────────────────────
 const SNIPPETS: Snippet[] = [
-  { id: 1, title: "useDebounce",          language: "REACT", tags: ["hooks", "utils"] },
-  { id: 2, title: "Singleton Pattern",    language: "JAVA",  tags: ["patterns"]       },
-  { id: 3, title: "Deep Clone Object",    language: "JS",    tags: ["utils"]          },
-  { id: 4, title: "GH Actions Build",    language: "YAML",  tags: ["ci", "devops"]   },
-  { id: 5, title: "fetch with retry",     language: "TS",    tags: ["api", "async"]   },
-  { id: 6, title: "useMemoizedCallback",  language: "REACT", tags: ["hooks"]          },
+  { id: 1, title: "useDebounce", language: "REACT", tags: ["hooks", "utils"] },
+  { id: 2, title: "Singleton Pattern", language: "JAVA", tags: ["patterns"] },
+  { id: 3, title: "Deep Clone Object", language: "JS", tags: ["utils"] },
+  {
+    id: 4,
+    title: "GH Actions Build",
+    language: "YAML",
+    tags: ["ci", "devops"],
+  },
+  { id: 5, title: "fetch with retry", language: "TS", tags: ["api", "async"] },
+  { id: 6, title: "useMemoizedCallback", language: "REACT", tags: ["hooks"] },
 ];
 
 // ── Language tag colours (bg / text) ──────────────────────────────────────────
 const LANG: Record<string, { bg: string; text: string }> = {
   REACT: { bg: "#1a2340", text: "#93c5fd" },
-  JAVA:  { bg: "#2d1a1f", text: "#fda4af" },
-  JS:    { bg: "#1e1333", text: "#c4b5fd" },
-  TS:    { bg: "#1e1333", text: "#a78bfa" },
-  YAML:  { bg: "#2a2010", text: "#fcd34d" },
-  PY:    { bg: "#1e2d1e", text: "#86efac" },
-  CSS:   { bg: "#1a2340", text: "#93c5fd" },
+  JAVA: { bg: "#2d1a1f", text: "#fda4af" },
+  JS: { bg: "#1e1333", text: "#c4b5fd" },
+  TS: { bg: "#1e1333", text: "#a78bfa" },
+  YAML: { bg: "#2a2010", text: "#fcd34d" },
+  PY: { bg: "#1e2d1e", text: "#86efac" },
+  CSS: { bg: "#1a2340", text: "#93c5fd" },
 };
 
 // ── Fuzzy search ──────────────────────────────────────────────────────────────
 function fuzzy(str: string, q: string) {
   str = str.toLowerCase();
-  q   = q.toLowerCase();
+  q = q.toLowerCase();
   let si = 0;
   for (let qi = 0; qi < q.length; qi++) {
     while (si < str.length && str[si] !== q[qi]) si++;
@@ -58,11 +64,12 @@ function fuzzy(str: string, q: string) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 export default function Navbar() {
-  const router   = useRouter();
+  const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const [query,       setQuery]       = useState("");
-  const [open,        setOpen]        = useState(false);
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const [selectedIdx, setSelectedIdx] = useState(0);
 
   const results = query
@@ -70,7 +77,7 @@ export default function Navbar() {
         (s) =>
           fuzzy(s.title, query) ||
           fuzzy(s.language, query) ||
-          s.tags.some((t) => fuzzy(t, query))
+          s.tags.some((t) => fuzzy(t, query)),
       )
     : [];
 
@@ -93,27 +100,48 @@ export default function Navbar() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setPaletteOpen((prev) => !prev);
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, []);
+
   // Reset selection when results change
-  useEffect(() => { setSelectedIdx(0); }, [query]);
+  useEffect(() => {
+    setSelectedIdx(0);
+  }, [query]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (!showDrop) return;
-    if (e.key === "ArrowDown") { e.preventDefault(); setSelectedIdx((i) => Math.min(i + 1, results.length - 1)); }
-    if (e.key === "ArrowUp")   { e.preventDefault(); setSelectedIdx((i) => Math.max(i - 1, 0)); }
-    if (e.key === "Enter"  && results[selectedIdx]) { setQuery(""); setOpen(false); }
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setSelectedIdx((i) => Math.min(i + 1, results.length - 1));
+    }
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setSelectedIdx((i) => Math.max(i - 1, 0));
+    }
+    if (e.key === "Enter" && results[selectedIdx]) {
+      setQuery("");
+      setOpen(false);
+    }
   };
 
   return (
-    <header className="h-14 flex items-center gap-3.5 px-5 bg-[#0f0f0f] border-b border-[#1e1e1e] sticky top-0 z-50">
-
+    <header className="h-14 flex items-center gap-3.5 px-5 bg-surface-shell border-b border-border-subtle sticky top-0 z-50">
       {/* ── Search bar ──────────────────────────── */}
       <div className="relative flex-1 max-w-115">
         {/* Input wrapper */}
         <div
           className={cn(
             "flex items-center gap-2 px-2.5 rounded-lg",
-            "bg-[#141414] border transition-colors duration-150",
-            open ? "border-[#3d2f6e]" : "border-[#2a2a2a]"
+            "bg-surface-default border transition-colors duration-150",
+            open ? "border-[#3d2f6e]" : "border-border-base",
           )}
         >
           {/* Search icon */}
@@ -134,20 +162,23 @@ export default function Navbar() {
             className={cn(
               "flex-1 py-2.5 bg-transparent border-none outline-none",
               "text-[12px] text-[#cccccc] placeholder:text-[#444444]",
-              "font-mono"
+              "font-mono",
             )}
           />
 
           {/* Clear button OR Cmd+K badge */}
           {query ? (
             <button
-              onMouseDown={() => { setQuery(""); inputRef.current?.focus(); }}
-              className="flex items-center justify-center text-[#555555] hover:text-[#aaaaaa] transition-colors p-0.5 rounded"
+              onMouseDown={() => {
+                setQuery("");
+                inputRef.current?.focus();
+              }}
+              className="flex items-center justify-center text-[#555555] hover:text-ink-secondary transition-colors p-0.5 rounded"
             >
               <X size={12} />
             </button>
           ) : (
-            <span className="flex items-center gap-0.5 shrink-0 text-[10px] text-[#444444] bg-[#1e1e1e] border border-[#2a2a2a] rounded px-1.5 py-0.5 font-mono">
+            <span className="flex items-center gap-0.5 shrink-0 text-[10px] text-[#444444] bg-border-subtle border border-border-base rounded px-1.5 py-0.5 font-mono">
               <Command size={9} />K
             </span>
           )}
@@ -155,7 +186,7 @@ export default function Navbar() {
 
         {/* ── Dropdown ──────────────────────────── */}
         {showDrop && (
-          <div className="absolute top-[calc(100%+6px)] left-0 right-0 bg-[#1a1a1a] border border-[#2a2a2a] rounded-xl overflow-hidden z-50 py-1">
+          <div className="absolute top-[calc(100%+6px)] left-0 right-0 bg-surface-raised border border-border-base rounded-xl overflow-hidden z-50 py-1">
             {results.length === 0 ? (
               <p className="text-[12px] text-[#555555] text-center py-4 font-mono">
                 No results for &quot;{query}&quot;
@@ -168,16 +199,24 @@ export default function Navbar() {
                 </p>
 
                 {results.map((item, i) => {
-                  const lang = LANG[item.language] ?? { bg: "#1e1e1e", text: "#aaaaaa" };
+                  const lang = LANG[item.language] ?? {
+                    bg: "#1e1e1e",
+                    text: "#aaaaaa",
+                  };
                   return (
                     <button
                       key={item.id}
-                      onMouseDown={() => { setQuery(""); setOpen(false); }}
+                      onMouseDown={() => {
+                        setQuery("");
+                        setOpen(false);
+                      }}
                       onMouseEnter={() => setSelectedIdx(i)}
                       className={cn(
                         "w-full flex items-center gap-2 px-3 py-1.75",
                         "text-left transition-colors duration-75",
-                        i === selectedIdx ? "bg-[#1e1333]" : "hover:bg-[#1e1e1e]"
+                        i === selectedIdx
+                          ? "bg-purple-950"
+                          : "hover:bg-border-subtle",
                       )}
                     >
                       {/* Icon */}
@@ -187,7 +226,9 @@ export default function Navbar() {
                       <span
                         className={cn(
                           "flex-1 text-[12px] font-mono truncate",
-                          i === selectedIdx ? "text-[#c4b5fd]" : "text-[#cccccc]"
+                          i === selectedIdx
+                            ? "text-purple-300"
+                            : "text-[#cccccc]",
                         )}
                       >
                         {item.title}
@@ -198,7 +239,7 @@ export default function Navbar() {
                         {item.tags.map((tag) => (
                           <span
                             key={tag}
-                            className="text-[9px] text-[#555555] bg-[#1e1e1e] rounded px-1.5 py-0.5 font-mono"
+                            className="text-[9px] text-[#555555] bg-border-subtle rounded px-1.5 py-0.5 font-mono"
                           >
                             {tag}
                           </span>
@@ -223,9 +264,9 @@ export default function Navbar() {
       <div className="flex items-center gap-1 ml-auto">
         {/* Icon buttons */}
         {[
-          { icon: Bell,        title: "Notifications" },
-          { icon: Settings,    title: "Settings"      },
-          { icon: HelpCircle,  title: "Help"          },
+          { icon: Bell, title: "Notifications" },
+          { icon: Settings, title: "Settings" },
+          { icon: HelpCircle, title: "Help" },
         ].map(({ icon: Icon, title }) => (
           <button
             key={title}
@@ -233,8 +274,8 @@ export default function Navbar() {
             className={cn(
               "w-8 h-8 flex items-center justify-center rounded-lg",
               "text-[#555555] bg-transparent border-none",
-              "hover:bg-[#1a1a1a] hover:text-[#aaaaaa]",
-              "transition-colors duration-120"
+              "hover:bg-surface-raised hover:text-ink-secondary",
+              "transition-colors duration-120",
             )}
           >
             <Icon size={15} />
@@ -242,25 +283,25 @@ export default function Navbar() {
         ))}
 
         {/* Divider */}
-        <div className="w-px h-4.5 bg-[#2a2a2a] mx-1.5" />
+        <div className="w-px h-4.5 bg-border-base mx-1.5" />
 
         {/* New snippet button */}
         <button
           onClick={() => router.push("/newsnippet")}
           className={cn(
             "flex items-center gap-1.5 px-3.5 py-1.75 rounded-lg",
-            "bg-[#1e1333] border border-[#3d2f6e]",
-            "text-[#c4b5fd] text-[12px] font-medium font-mono tracking-[0.03em]",
-            "hover:bg-[#2a1a4a] hover:border-[#6d28d9] hover:text-[#ddd6fe]",
+            "bg-purple-950 border border-[#3d2f6e]",
+            "text-purple-300 text-[12px] font-medium font-mono tracking-[0.03em]",
+            "hover:bg-[#2a1a4a] hover:border-purple-600 hover:text-[#ddd6fe]",
             "active:scale-[0.98]",
-            "transition-all duration-150 whitespace-nowrap"
+            "transition-all duration-150 whitespace-nowrap",
           )}
         >
           <Plus size={14} />
           New Snippet
         </button>
       </div>
-
+      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
     </header>
   );
 }
