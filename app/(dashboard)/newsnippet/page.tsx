@@ -5,10 +5,10 @@ import { useRouter } from "next/navigation";
 import { useForm } from "@tanstack/react-form";
 import { zodValidator } from "@tanstack/zod-form-adapter";
 import { z } from "zod";
+import hljs from "highlight.js";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -19,13 +19,12 @@ import {
 import {
   Undo2,
   Redo2,
-  Plus,
   X,
   Save,
   Lock,
   Users,
-  ChevronDown,
   AlertCircle,
+  Sparkles,
 } from "lucide-react";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -39,6 +38,27 @@ const COLLECTIONS = [
   "Design Patterns", "DevOps", "Algorithms",
 ];
 
+// Map hljs language names → our dropdown values
+const HLJS_TO_LABEL: Record<string, string> = {
+  javascript:  "JavaScript",
+  typescript:  "TypeScript",
+  python:      "Python",
+  java:        "Java",
+  rust:        "Rust",
+  go:          "Go",
+  css:         "CSS",
+  xml:         "HTML",
+  html:        "HTML",
+  sql:         "SQL",
+  yaml:        "YAML",
+  bash:        "Bash",
+  shell:       "Bash",
+  cpp:         "C++",
+  csharp:      "C#",
+  ruby:        "Ruby",
+  php:         "PHP",
+};
+
 // ── Zod schema ────────────────────────────────────────────────────────────────
 const snippetSchema = z.object({
   title:       z.string().min(1, "Title is required").max(80, "Max 80 characters"),
@@ -50,75 +70,13 @@ const snippetSchema = z.object({
   visibility:  z.enum(["private", "shared"]),
 });
 
-type SnippetFormValues = z.infer<typeof snippetSchema>;
-
-// ── Line-number gutter ────────────────────────────────────────────────────────
-function CodeEditor({
-  value,
-  onChange,
-  error,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  error?: string;
-}) {
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const lines = value.split("\n");
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Tab") {
-      e.preventDefault();
-      const ta = e.currentTarget;
-      const start = ta.selectionStart;
-      const end   = ta.selectionEnd;
-      const next  = value.substring(0, start) + "  " + value.substring(end);
-      onChange(next);
-      requestAnimationFrame(() => {
-        ta.selectionStart = ta.selectionEnd = start + 2;
-      });
-    }
-  };
-
+// ── Field error ───────────────────────────────────────────────────────────────
+function FieldError({ message }: { message?: string }) {
+  if (!message) return null;
   return (
-    <div
-      className={cn(
-        "flex flex-1 min-h-0 overflow-hidden rounded-none",
-        error ? "ring-1 ring-red-500/50" : ""
-      )}
-    >
-      {/* Line numbers */}
-      <div
-        aria-hidden
-        className="select-none shrink-0 w-10 bg-surface-base border-r border-border-subtle pt-3 pb-3 flex flex-col items-end pr-2 overflow-hidden"
-      >
-        {lines.map((_, i) => (
-          <span
-            key={i}
-            className="text-[11px] font-mono text-ink-disabled leading-[1.7] h-[18.7px]"
-          >
-            {i + 1}
-          </span>
-        ))}
-      </div>
-
-      {/* Textarea */}
-      <textarea
-        ref={textareaRef}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onKeyDown={handleKeyDown}
-        spellCheck={false}
-        autoComplete="off"
-        className={cn(
-          "flex-1 resize-none bg-[#0d0d0d] text-[#cccccc]",
-          "text-[12px] font-mono leading-[1.7] px-4 pt-3 pb-3",
-          "outline-none border-none caret-purple-400",
-          "placeholder:text-border-base",
-          "scrollbar-thin"
-        )}
-        placeholder="// Paste or type your snippet here..."
-      />
-    </div>
+    <p className="text-[11px] text-red-400 font-mono flex items-center gap-1 mt-1">
+      <AlertCircle size={10} /> {message}
+    </p>
   );
 }
 
@@ -162,19 +120,13 @@ function TagInput({
             </button>
           </span>
         ))}
-
         {tags.length < 8 && (
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === ",") {
-                e.preventDefault();
-                commit();
-              }
-              if (e.key === "Backspace" && !input && tags.length) {
-                onRemove(tags[tags.length - 1]);
-              }
+              if (e.key === "Enter" || e.key === ",") { e.preventDefault(); commit(); }
+              if (e.key === "Backspace" && !input && tags.length) onRemove(tags[tags.length - 1]);
             }}
             onBlur={commit}
             placeholder="Add tag..."
@@ -182,80 +134,19 @@ function TagInput({
           />
         )}
       </div>
-      {error && (
-        <p className="text-[11px] text-red-400 font-mono flex items-center gap-1 mt-1">
-          <AlertCircle size={10} /> {error}
-        </p>
-      )}
-    </div>
-  );
-}
-
-// ── Toolbar ───────────────────────────────────────────────────────────────────
-function EditorToolbar({
-  language,
-  onLanguageChange,
-  onUndo,
-  onRedo,
-}: {
-  language: string;
-  onLanguageChange: (v: string) => void;
-  onUndo: () => void;
-  onRedo: () => void;
-}) {
-  return (
-    <div className="flex items-center justify-between px-3 py-2 bg-[#111111] border-b border-border-subtle shrink-0">
-      {/* Left — undo/redo */}
-      <div className="flex items-center gap-1">
-        <button
-          type="button"
-          onClick={onUndo}
-          className="p-1.5 rounded text-[#444444] hover:text-[#888888] hover:bg-surface-raised transition-colors"
-          title="Undo"
-        >
-          <Undo2 size={13} />
-        </button>
-        <button
-          type="button"
-          onClick={onRedo}
-          className="p-1.5 rounded text-[#444444] hover:text-[#888888] hover:bg-surface-raised transition-colors"
-          title="Redo"
-        >
-          <Redo2 size={13} />
-        </button>
-      </div>
-
-      {/* Right — language selector */}
-      <Select value={language} onValueChange={onLanguageChange}>
-        <SelectTrigger className="h-7 w-32.5 bg-surface-raised border-border-base text-ink-secondary text-[11px] font-mono rounded-md hover:border-[#3d2f6e] transition-colors [&>svg]:text-[#555555]">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent className="bg-surface-raised border-border-base text-ink-secondary font-mono text-[11px]">
-          {LANGUAGES.map((l) => (
-            <SelectItem
-              key={l}
-              value={l}
-              className="text-[11px] font-mono hover:bg-purple-950 hover:text-purple-300 focus:bg-purple-950 focus:text-purple-300 cursor-pointer"
-            >
-              {l}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      {error && <FieldError message={error} />}
     </div>
   );
 }
 
 // ── Visibility option ─────────────────────────────────────────────────────────
 function VisibilityOption({
-  value,
   selected,
   onSelect,
   icon: Icon,
   label,
   description,
 }: {
-  value: string;
   selected: boolean;
   onSelect: () => void;
   icon: React.ElementType;
@@ -273,18 +164,12 @@ function VisibilityOption({
           : "bg-surface-default border-border-base hover:border-border-hover"
       )}
     >
-      {/* Radio circle */}
-      <div
-        className={cn(
-          "mt-0.5 w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center transition-colors",
-          selected ? "border-purple-600" : "border-ink-disabled"
-        )}
-      >
-        {selected && (
-          <div className="w-2 h-2 rounded-full bg-purple-600" />
-        )}
+      <div className={cn(
+        "mt-0.5 w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center transition-colors",
+        selected ? "border-purple-600" : "border-ink-disabled"
+      )}>
+        {selected && <div className="w-2 h-2 rounded-full bg-purple-600" />}
       </div>
-
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <Icon size={12} className={selected ? "text-purple-400" : "text-[#555555]"} />
@@ -300,13 +185,165 @@ function VisibilityOption({
   );
 }
 
-// ── Field error ───────────────────────────────────────────────────────────────
-function FieldError({ message }: { message?: string }) {
-  if (!message) return null;
+// ── Code editor with auto-detection ──────────────────────────────────────────
+function CodeEditor({
+  value,
+  onChange,
+  onLanguageDetected,
+  detectedLanguage,
+  error,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onLanguageDetected: (lang: string) => void;
+  detectedLanguage: string | null;
+  error?: string;
+}) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const lines = value.split("\n");
+
+  // ── Auto-detect on paste ──────────────────────────────────────────────────
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const pastedText = e.clipboardData.getData("text");
+
+    // Only run detection if there's meaningful code (> 30 chars)
+    if (pastedText.trim().length > 30) {
+      try {
+        const result = hljs.highlightAuto(pastedText);
+
+        // hljs returns a relevance score — only trust it if > 5
+        if (result.language && result.relevance > 5) {
+          const mapped = HLJS_TO_LABEL[result.language];
+          if (mapped) {
+            onLanguageDetected(mapped);
+          }
+        }
+      } catch {
+        // Silently fail — detection is best-effort
+      }
+    }
+  };
+
+  // ── Tab key → insert spaces ───────────────────────────────────────────────
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Tab") {
+      e.preventDefault();
+      const ta = e.currentTarget;
+      const start = ta.selectionStart;
+      const end = ta.selectionEnd;
+      const next = value.substring(0, start) + "  " + value.substring(end);
+      onChange(next);
+      requestAnimationFrame(() => {
+        ta.selectionStart = ta.selectionEnd = start + 2;
+      });
+    }
+  };
+
   return (
-    <p className="text-[11px] text-red-400 font-mono flex items-center gap-1 mt-1">
-      <AlertCircle size={10} /> {message}
-    </p>
+    <div className={cn(
+      "flex flex-1 min-h-0 overflow-hidden",
+      error ? "ring-1 ring-red-500/50" : ""
+    )}>
+      {/* Line numbers */}
+      <div
+        aria-hidden
+        className="select-none shrink-0 w-10 bg-surface-base border-r border-border-subtle pt-3 pb-3 flex flex-col items-end pr-2 overflow-hidden"
+      >
+        {lines.map((_, i) => (
+          <span
+            key={i}
+            className="text-[11px] font-mono text-ink-disabled leading-[1.7] h-[18.7px]"
+          >
+            {i + 1}
+          </span>
+        ))}
+      </div>
+
+      {/* Textarea */}
+      <textarea
+        ref={textareaRef}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={handleKeyDown}
+        onPaste={handlePaste}
+        spellCheck={false}
+        autoComplete="off"
+        className={cn(
+          "flex-1 resize-none bg-[#0d0d0d] text-[#cccccc]",
+          "text-[12px] font-mono leading-[1.7] px-4 pt-3 pb-3",
+          "outline-none border-none caret-purple-400",
+          "placeholder:text-border-base"
+        )}
+        placeholder="// Paste or type your snippet here..."
+      />
+
+      {/* Auto-detected language toast — shows briefly after detection */}
+      {detectedLanguage && (
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 px-3 py-1.5 rounded-lg bg-purple-950 border border-[#3d2f6e] text-purple-300 text-[11px] font-mono shadow-lg pointer-events-none animate-fade-in">
+          <Sparkles size={11} className="text-purple-400" />
+          Detected: {detectedLanguage}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Editor toolbar ────────────────────────────────────────────────────────────
+function EditorToolbar({
+  language,
+  onLanguageChange,
+  isAutoDetected,
+}: {
+  language: string;
+  onLanguageChange: (v: string) => void;
+  isAutoDetected: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between px-3 py-2 bg-[#111111] border-b border-border-subtle shrink-0">
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          className="p-1.5 rounded text-[#444444] hover:text-[#888888] hover:bg-surface-raised transition-colors"
+          title="Undo"
+        >
+          <Undo2 size={13} />
+        </button>
+        <button
+          type="button"
+          className="p-1.5 rounded text-[#444444] hover:text-[#888888] hover:bg-surface-raised transition-colors"
+          title="Redo"
+        >
+          <Redo2 size={13} />
+        </button>
+      </div>
+
+      <div className="flex items-center gap-2">
+        {/* Auto-detected badge */}
+        {isAutoDetected && (
+          <span className="flex items-center gap-1 text-[10px] font-mono text-purple-400 bg-purple-950 border border-[#3d2f6e] px-2 py-0.5 rounded-full">
+            <Sparkles size={9} />
+            auto-detected
+          </span>
+        )}
+
+        <Select value={language} onValueChange={(v) => { onLanguageChange(v); }}>
+          <SelectTrigger className="h-7 w-32.5 bg-surface-raised border-border-base text-ink-secondary text-[11px] font-mono rounded-md hover:border-[#3d2f6e] transition-colors [&>svg]:text-[#555555]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent className="bg-surface-raised border-border-base font-mono text-[11px]">
+            {LANGUAGES.map((l) => (
+              <SelectItem
+                key={l}
+                value={l}
+                className="text-[11px] font-mono hover:bg-purple-950 hover:text-purple-300 focus:bg-purple-950 focus:text-purple-300 cursor-pointer"
+              >
+                {l}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
   );
 }
 
@@ -314,29 +351,45 @@ function FieldError({ message }: { message?: string }) {
 export default function AddSnippetPage() {
   const router = useRouter();
 
+  // Track whether the current language was auto-detected
+  const [isAutoDetected, setIsAutoDetected]     = useState(false);
+  // Briefly show detected language toast
+  const [detectedLang,   setDetectedLang]       = useState<string | null>(null);
+  const detectedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const form = useForm({
     defaultValues: {
-      title:       "",
-      description: "",
-      code:        "",
-      language:    "JavaScript",
-      collection:  "",
-      tags:        [] as string[],
-      visibility:  "private" as "private" | "shared",
+      title:      "",
+      description:"",
+      code:       "",
+      language:   "JavaScript",
+      collection: "",
+      tags:       [] as string[],
+      visibility: "private" as "private" | "shared",
     },
     validatorAdapter: zodValidator(),
     onSubmit: async ({ value }) => {
-      // Replace with your API call
-      console.log("Submitting snippet:", value);
+      console.log("Submitting:", value);
       await new Promise((r) => setTimeout(r, 800));
       router.push("/dashboard");
     },
   });
 
+  // Called by CodeEditor when hljs detects a language on paste
+  const handleLanguageDetected = (lang: string) => {
+    form.setFieldValue("language", lang);
+    setIsAutoDetected(true);
+    setDetectedLang(lang);
+
+    // Hide the toast after 3 seconds
+    if (detectedTimerRef.current) clearTimeout(detectedTimerRef.current);
+    detectedTimerRef.current = setTimeout(() => setDetectedLang(null), 3000);
+  };
+
   return (
     <div className="flex flex-col h-full bg-surface-base">
 
-      {/* ── Top bar ──────────────────────────────── */}
+      {/* ── Top bar ──────────────────────────── */}
       <div className="flex items-center justify-between px-5 py-3 bg-surface-shell border-b border-border-subtle shrink-0">
         <h1 className="text-[13px] font-semibold text-ink-primary font-mono tracking-wide">
           Add New Snippet
@@ -349,7 +402,6 @@ export default function AddSnippetPage() {
           >
             Cancel
           </button>
-
           <button
             type="button"
             onClick={form.handleSubmit}
@@ -368,41 +420,43 @@ export default function AddSnippetPage() {
         </div>
       </div>
 
-      {/* ── Body — editor + meta panel ───────────── */}
+      {/* ── Body ─────────────────────────────── */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
 
-        {/* ── Left: Code editor ──────────────────── */}
-        <div className="flex flex-col flex-1 min-w-0 min-h-0 border-r border-border-subtle">
+        {/* Left — code editor */}
+        <div className="flex flex-col flex-1 min-w-0 min-h-0 border-r border-border-subtle relative">
 
-          {/* Editor toolbar */}
-          <form.Field name="language">
-            {(field) => (
+          {/* Toolbar — reads language from form */}
+          <form.Subscribe selector={(s) => s.values.language}>
+            {(language) => (
               <EditorToolbar
-                language={field.state.value}
-                onLanguageChange={field.handleChange}
-                onUndo={() => {}}
-                onRedo={() => {}}
+                language={language}
+                onLanguageChange={(v) => {
+                  form.setFieldValue("language", v);
+                  setIsAutoDetected(false); // user manually changed it
+                }}
+                isAutoDetected={isAutoDetected}
               />
             )}
-          </form.Field>
+          </form.Subscribe>
 
-          {/* Code textarea with line numbers */}
+          {/* Code editor */}
           <form.Field
             name="code"
-            validators={{
-              onSubmit: z.string().min(1, "Code cannot be empty"),
-            }}
+            validators={{ onSubmit: z.string().min(1, "Code cannot be empty") }}
           >
             {(field) => (
               <CodeEditor
                 value={field.state.value}
                 onChange={field.handleChange}
+                onLanguageDetected={handleLanguageDetected}
+                detectedLanguage={detectedLang}
                 error={field.state.meta.errors?.[0]?.toString()}
               />
             )}
           </form.Field>
 
-          {/* Code error */}
+          {/* Code field error */}
           <form.Field name="code">
             {(field) =>
               field.state.meta.errors?.length ? (
@@ -414,7 +468,7 @@ export default function AddSnippetPage() {
           </form.Field>
         </div>
 
-        {/* ── Right: Meta panel ──────────────────── */}
+        {/* Right — meta panel */}
         <div className="w-70 shrink-0 flex flex-col bg-surface-shell overflow-y-auto">
           <div className="p-5 border-b border-border-subtle">
             <h2 className="text-[14px] font-semibold text-ink-primary font-mono">Snippet Meta</h2>
@@ -426,9 +480,7 @@ export default function AddSnippetPage() {
             {/* Title */}
             <form.Field
               name="title"
-              validators={{
-                onSubmit: z.string().min(1, "Title is required").max(80, "Max 80 characters"),
-              }}
+              validators={{ onSubmit: z.string().min(1, "Title is required").max(80, "Max 80 characters") }}
             >
               {(field) => (
                 <div>
@@ -486,18 +538,13 @@ export default function AddSnippetPage() {
                   <label className="block text-[10px] font-semibold font-mono text-ink-muted tracking-[0.08em] uppercase mb-1.5">
                     Collection
                   </label>
-                  <Select
-                    value={field.state.value}
-                    onValueChange={field.handleChange}
-                  >
-                    <SelectTrigger
-                      className={cn(
-                        "h-8 bg-transparent border-border-base text-[#cccccc] text-[11px] font-mono rounded-lg",
-                        "hover:border-border-hover focus:ring-1 focus:ring-[#3d2f6e] focus:border-[#3d2f6e]",
-                        "transition-colors [&>svg]:text-[#555555]",
-                        !field.state.value && "[&>span]:text-ink-disabled"
-                      )}
-                    >
+                  <Select value={field.state.value} onValueChange={field.handleChange}>
+                    <SelectTrigger className={cn(
+                      "h-8 bg-transparent border-border-base text-[#cccccc] text-[11px] font-mono rounded-lg",
+                      "hover:border-border-hover focus:ring-1 focus:ring-[#3d2f6e] focus:border-[#3d2f6e]",
+                      "transition-colors [&>svg]:text-[#555555]",
+                      !field.state.value && "[&>span]:text-ink-disabled"
+                    )}>
                       <SelectValue placeholder="Select collection..." />
                     </SelectTrigger>
                     <SelectContent className="bg-surface-raised border-border-base font-mono text-[11px]">
@@ -523,14 +570,12 @@ export default function AddSnippetPage() {
                   <label className="block text-[10px] font-semibold font-mono text-ink-muted tracking-[0.08em] uppercase mb-1.5">
                     Tags
                   </label>
-                  <div
-                    className={cn(
-                      "min-h-9 flex flex-wrap items-center gap-1.5 px-2.5 py-1.5",
-                      "rounded-lg border border-border-base bg-transparent",
-                      "hover:border-border-hover transition-colors",
-                      "focus-within:border-[#3d2f6e] focus-within:ring-1 focus-within:ring-[#3d2f6e]"
-                    )}
-                  >
+                  <div className={cn(
+                    "min-h-9 flex flex-wrap items-center gap-1.5 px-2.5 py-1.5",
+                    "rounded-lg border border-border-base bg-transparent",
+                    "hover:border-border-hover transition-colors",
+                    "focus-within:border-[#3d2f6e] focus-within:ring-1 focus-within:ring-[#3d2f6e]"
+                  )}>
                     <TagInput
                       tags={field.state.value}
                       onAdd={(t) => field.handleChange([...field.state.value, t])}
@@ -554,7 +599,6 @@ export default function AddSnippetPage() {
                   </label>
                   <div className="flex flex-col gap-2">
                     <VisibilityOption
-                      value="private"
                       selected={field.state.value === "private"}
                       onSelect={() => field.handleChange("private")}
                       icon={Lock}
@@ -562,7 +606,6 @@ export default function AddSnippetPage() {
                       description="Only you can view this snippet."
                     />
                     <VisibilityOption
-                      value="shared"
                       selected={field.state.value === "shared"}
                       onSelect={() => field.handleChange("shared")}
                       icon={Users}
@@ -573,10 +616,9 @@ export default function AddSnippetPage() {
                 </div>
               )}
             </form.Field>
-
           </div>
 
-          {/* Bottom action bar — mirrors top bar for convenience */}
+          {/* Bottom actions */}
           <div className="mt-auto p-5 border-t border-border-subtle flex gap-2">
             <button
               type="button"
