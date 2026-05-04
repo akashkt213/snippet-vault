@@ -4,7 +4,6 @@ import { useState } from "react";
 import { Filter, Code2 } from "lucide-react";
 import SnippetCard, {
   Snippet,
-  Language,
 } from "@/components/shared/SnippetCard";
 import { cn } from "@/lib/utils";
 
@@ -186,11 +185,11 @@ export default function DashboardPage() {
   });
 
   return (
-    <div className="p-6 max-w-[1400px]">
+    <div className="p-6 max-w-350">
       {/* ── Page header ──────────────────────── */}
       <div className="flex items-end justify-between mb-6">
         <div>
-          <h1 className="text-[22px] font-semibold text-[#e5e5e5] font-mono tracking-tight">
+          <h1 className="text-[22px] font-semibold text-ink-primary font-mono tracking-tight">
             All Snippets
           </h1>
           <p className="text-[12px] text-[#555555] font-mono mt-1">
@@ -199,7 +198,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Filter button */}
-        <button className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#141414] border border-[#2a2a2a] text-[#666666] text-[11px] font-mono hover:border-[#3d2f6e] hover:text-[#c4b5fd] transition-colors duration-150">
+        <button className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface-default border border-border-base text-ink-muted text-[11px] font-mono hover:border-[#3d2f6e] hover:text-purple-300 transition-colors duration-150">
           <Filter size={12} />
           FILTER
         </button>
@@ -214,8 +213,8 @@ export default function DashboardPage() {
             className={cn(
               "px-3 py-1 rounded-md text-[11px] font-mono tracking-[0.03em] border transition-colors duration-150",
               activeFilter === f.value
-                ? "bg-[#1e1333] border-[#3d2f6e] text-[#c4b5fd]"
-                : "bg-transparent border-[#2a2a2a] text-[#555555] hover:border-[#3a3a3a] hover:text-[#888888]",
+                ? "bg-purple-950 border-[#3d2f6e] text-purple-300"
+                : "bg-transparent border-border-base text-[#555555] hover:border-border-hover hover:text-[#888888]",
             )}
           >
             {f.label}
@@ -226,13 +225,13 @@ export default function DashboardPage() {
       {/* ── Snippet grid ─────────────────────── */}
       {filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 text-center">
-          <div className="w-12 h-12 rounded-xl bg-[#1e1333] border border-[#3d2f6e] flex items-center justify-center mb-4">
-            <Code2 size={20} className="text-[#6d28d9]" />
+          <div className="w-12 h-12 rounded-xl bg-purple-950 border border-[#3d2f6e] flex items-center justify-center mb-4">
+            <Code2 size={20} className="text-purple-600" />
           </div>
           <p className="text-[14px] text-[#555555] font-mono">
             No snippets found
           </p>
-          <p className="text-[12px] text-[#333333] font-mono mt-1">
+          <p className="text-[12px] text-ink-disabled font-mono mt-1">
             Try a different filter
           </p>
         </div>
