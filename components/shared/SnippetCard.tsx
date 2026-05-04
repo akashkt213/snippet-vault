@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Copy, Check, Star, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { CodeViewer } from "./CodeViewer";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 export type Language =
@@ -84,7 +85,7 @@ export default function SnippetCard({
       onClick={() => onClick?.(snippet.id)}
       className={cn(
         // base card
-        "group flex flex-col bg-[#141414] border border-[#2a2a2a] rounded-xl overflow-hidden",
+        "group flex flex-col bg-surface-default border border-border-base rounded-xl overflow-hidden",
         "cursor-pointer transition-all duration-200",
         // hover — lift + accent border
         "hover:border-[#3d2f6e] hover:bg-[#161616]",
@@ -96,30 +97,30 @@ export default function SnippetCard({
         {/* Title + description */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <h3 className="text-[14px] font-semibold text-[#e5e5e5] truncate font-mono">
+            <h3 className="text-[14px] font-semibold text-ink-primary truncate font-mono">
               {snippet.title}
             </h3>
             {/* Language badge */}
             <span
-              className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded font-mono tracking-[0.05em]"
+              className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded font-mono tracking-wider"
               style={{ background: lang.bg, color: lang.text }}
             >
               {lang.label}
             </span>
           </div>
-          <p className="text-[12px] text-[#666666] leading-relaxed line-clamp-2 font-mono">
+          <p className="text-[12px] text-ink-muted leading-relaxed line-clamp-2 font-mono">
             {snippet.description}
           </p>
         </div>
-
+      
         {/* Star button */}
         <button
           onClick={handleStar}
           className={cn(
             "shrink-0 p-1 rounded-md transition-colors duration-150 mt-0.5",
             snippet.starred
-              ? "text-[#a78bfa]"
-              : "text-[#333333] hover:text-[#666666]",
+              ? "text-purple-400"
+              : "text-ink-disabled hover:text-ink-muted",
           )}
           title={snippet.starred ? "Unstar" : "Star"}
         >
@@ -128,11 +129,11 @@ export default function SnippetCard({
       </div>
 
       {/* ── Code block ─────────────────────────── */}
-      <div className="relative flex-1 mx-0 bg-[#0f0f0f] border-t border-b border-[#1e1e1e] overflow-hidden">
+      <div className="relative flex-1 mx-0 bg-surface-shell border-t border-b border-border-subtle overflow-hidden">
         {/* Scrollable code area */}
         <div className="overflow-x-auto overflow-y-hidden">
-          <pre className="px-4 py-3 text-[11px] leading-[1.7] text-[#aaaaaa] font-mono whitespace-pre min-h-[160px] max-h-[220px] overflow-y-auto">
-            <CodeHighlight code={snippet.code} language={snippet.language} />
+          <pre className="px-4 py-3 text-[11px] leading-[1.7] text-ink-secondary font-mono whitespace-pre min-h-40 max-h-55 overflow-y-auto">
+            <CodeViewer code={snippet.code} language={snippet.language} />
           </pre>
         </div>
 
@@ -152,7 +153,7 @@ export default function SnippetCard({
           {snippet.tags?.slice(0, 2).map((tag) => (
             <span
               key={tag}
-              className="text-[9px] text-[#555555] bg-[#1e1e1e] border border-[#2a2a2a] px-1.5 py-0.5 rounded font-mono"
+              className="text-[9px] text-[#555555] bg-border-subtle border border-border-base px-1.5 py-0.5 rounded font-mono"
             >
               {tag}
             </span>
@@ -167,7 +168,7 @@ export default function SnippetCard({
             "border transition-all duration-150",
             copied
               ? "bg-[#1e2d1e] border-[#86efac] text-[#86efac]"
-              : "bg-[#1e1e1e] border-[#2a2a2a] text-[#666666] hover:border-[#3d2f6e] hover:text-[#c4b5fd]",
+              : "bg-border-subtle border-border-base text-ink-muted hover:border-[#3d2f6e] hover:text-purple-300",
           )}
           title="Copy code"
         >
@@ -177,106 +178,4 @@ export default function SnippetCard({
       </div>
     </div>
   );
-}
-
-// ── Minimal syntax highlighter (no library needed) ────────────────────────────
-// Highlights keywords, strings, comments with the midnight purple palette
-function CodeHighlight({
-  code,
-  language,
-}: {
-  code: string;
-  language: Language;
-}) {
-  const lines = code.split("\n");
-
-  return (
-    <>
-      {lines.map((line, i) => (
-        <div key={i}>
-          <HighlightedLine line={line} language={language} />
-        </div>
-      ))}
-    </>
-  );
-}
-
-function HighlightedLine({
-  line,
-  language,
-}: {
-  line: string;
-  language: Language;
-}) {
-  // Comment
-  if (/^\s*(\/\/|#|--|\*|\/\*)/.test(line)) {
-    return <span className="text-[#3a3a3a] italic">{line}</span>;
-  }
-
-  // Simple token-level coloring via regex replace rendered as spans
-  const parts: React.ReactNode[] = [];
-  let remaining = line;
-  let key = 0;
-
-  const push = (text: string, color?: string) => {
-    if (!text) return;
-    parts.push(
-      color ? (
-        <span key={key++} style={{ color }}>
-          {text}
-        </span>
-      ) : (
-        <span key={key++} className="text-[#aaaaaa]">
-          {text}
-        </span>
-      ),
-    );
-  };
-
-  // Tokenise greedily — order matters (most specific first)
-  const tokens: [RegExp, string][] = [
-    // strings
-    [/^(".*?"|'.*?'|`.*?`)/, "#86efac"],
-    // keywords
-    [
-      /^(import|export|from|const|let|var|function|return|if|else|new|class|public|private|static|void|async|await|for|while|of|in|type|interface)\b/,
-      "#c4b5fd",
-    ],
-    // types / class names (PascalCase)
-    [/^[A-Z][a-zA-Z0-9_]*/, "#93c5fd"],
-    // numbers
-    [/^\d+/, "#fcd34d"],
-    // punctuation / operators
-    [/^[{}[\]();,.<>=!+\-*/&|?:^%~]+/, "#555555"],
-    // everything else (one word or one char)
-    [/^[a-zA-Z_$][a-zA-Z0-9_$]*/, "#aaaaaa"],
-    [/^./, "#666666"],
-  ];
-
-  while (remaining.length > 0) {
-    // Leading whitespace
-    const ws = remaining.match(/^\s+/);
-    if (ws) {
-      parts.push(<span key={key++}>{ws[0]}</span>);
-      remaining = remaining.slice(ws[0].length);
-      continue;
-    }
-
-    let matched = false;
-    for (const [re, color] of tokens) {
-      const m = remaining.match(re);
-      if (m) {
-        push(m[0], color);
-        remaining = remaining.slice(m[0].length);
-        matched = true;
-        break;
-      }
-    }
-    if (!matched) {
-      push(remaining[0]);
-      remaining = remaining.slice(1);
-    }
-  }
-
-  return <>{parts}</>;
 }

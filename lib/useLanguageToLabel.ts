@@ -1,0 +1,18 @@
+export const HLJS_TO_LABEL: Record<string, string> = {
+  javascript: "JavaScript",
+  typescript: "TypeScript",
+  python: "Python",
+  java: "Java",
+  rust: "Rust",
+  go: "Go",
+  css: "CSS",
+  xml: "HTML",
+  html: "HTML",
+  sql: "SQL",
+  yaml: "YAML",
+  bash: "Bash",
+  shell: "Bash",
+  cpp: "C++",
+  php: "PHP",
+  ruby: "Ruby",
+};
