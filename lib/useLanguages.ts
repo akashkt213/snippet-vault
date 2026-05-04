@@ -1,0 +1,16 @@
+export const LANGUAGES = [
+  "JavaScript",
+  "TypeScript",
+  "Python",
+  "Java",
+  "Rust",
+  "Go",
+  "CSS",
+  "HTML",
+  "SQL",
+  "YAML",
+  "Bash",
+  "C++",
+  "PHP",
+  "Ruby",
+];
