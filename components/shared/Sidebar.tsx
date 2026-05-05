@@ -7,9 +7,7 @@ import {
   Code2,
   FolderOpen,
   Star,
-  Trash2,
   BookOpen,
-  Settings,
   ChevronRight,
 } from "lucide-react";
 
@@ -21,8 +19,7 @@ const NAV_ITEMS = [
 ];
 
 const BOTTOM_ITEMS = [
-  { label: "Docs",     href: "/dashboard/docs",     icon: BookOpen },
-  { label: "Settings", href: "/dashboard/settings", icon: Settings },
+  { label: "New Snippet", href: "/newsnippet", icon: BookOpen },
 ];
 
 export default function Sidebar() {

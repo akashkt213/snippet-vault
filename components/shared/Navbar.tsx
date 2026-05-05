@@ -111,11 +111,6 @@ export default function Navbar() {
     return () => document.removeEventListener("keydown", handler);
   }, []);
 
-  // Reset selection when results change
-  useEffect(() => {
-    setSelectedIdx(0);
-  }, [query]);
-
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (!showDrop) return;
     if (e.key === "ArrowDown") {
@@ -152,7 +147,10 @@ export default function Navbar() {
             ref={inputRef}
             type="text"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setSelectedIdx(0);
+            }}
             onFocus={() => setOpen(true)}
             onBlur={() => setTimeout(() => setOpen(false), 150)}
             onKeyDown={handleKeyDown}
@@ -171,6 +169,7 @@ export default function Navbar() {
             <button
               onMouseDown={() => {
                 setQuery("");
+                setSelectedIdx(0);
                 inputRef.current?.focus();
               }}
               className="flex items-center justify-center text-[#555555] hover:text-ink-secondary transition-colors p-0.5 rounded"

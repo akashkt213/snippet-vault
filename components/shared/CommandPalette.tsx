@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import {
@@ -17,7 +17,7 @@ import {
   Search,
   Code2,
   FolderOpen,
-  Settings,
+  Star,
   ChevronUp,
   ChevronDown,
   CornerDownLeft,
@@ -73,9 +73,10 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
   const router = useRouter();
   const [query, setQuery] = useState("");
 
-  useEffect(() => {
-    if (!open) setQuery("");
-  }, [open]);
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen) setQuery("");
+    onOpenChange(nextOpen);
+  };
 
   const navigate = (href: string) => {
     onOpenChange(false);
@@ -95,7 +96,7 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
     : "";
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       {/*
         Key fix: override every default DialogContent style.
         bg-transparent  → removes the white background
@@ -151,7 +152,7 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
 
               <CommandItem
                 value={`create-new-${query}-snippet`}
-                onSelect={() => navigate(`/dashboard/codes/new${query ? `?title=${query}` : ""}`)}
+                onSelect={() => navigate(`/newsnippet${query ? `?title=${query}` : ""}`)}
                 className={cn(
                   "flex items-center gap-3 px-3 py-3 rounded-lg cursor-pointer focus:outline-none",
                   "border border-transparent transition-colors duration-100",
@@ -204,7 +205,7 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
                   <CommandItem
                     key={snippet.id}
                     value={`${snippet.id}-${snippet.title}`}
-                    onSelect={() => navigate(`/dashboard/codes/${snippet.id}`)}
+                    onSelect={() => navigate(`/dashboard`)}
                     className={baseItem}
                   >
                     <Code2 size={14} className="text-[#55556a] shrink-0 ml-0.5" />
@@ -229,7 +230,7 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
             <CommandGroup heading="Navigation" className={groupHeading}>
               <CommandItem
                 value="go-to-collections"
-                onSelect={() => navigate("/dashboard/collections")}
+                onSelect={() => navigate("/collections")}
                 className={baseItem}
               >
                 <FolderOpen size={14} className="text-[#55556a] shrink-0 ml-0.5" />
@@ -239,13 +240,13 @@ export default function CommandPalette({ open, onOpenChange }: CommandPalettePro
               </CommandItem>
 
               <CommandItem
-                value="open-settings"
-                onSelect={() => navigate("/dashboard/settings")}
+                value="go-to-favorites"
+                onSelect={() => navigate("/favorites")}
                 className={baseItem}
               >
-                <Settings size={14} className="text-[#55556a] shrink-0 ml-0.5" />
+                <Star size={14} className="text-[#55556a] shrink-0 ml-0.5" />
                 <span className="text-[13px] font-mono text-[#aaaabc]">
-                  Open Settings
+                  Go to Favorites
                 </span>
               </CommandItem>
             </CommandGroup>
