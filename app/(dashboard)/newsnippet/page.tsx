@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "@tanstack/react-form";
+import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";
 import hljs from "highlight.js";
 
@@ -35,15 +36,7 @@ import { getLangExtension } from "@/lib/getLangExtension";
 import { LANGUAGES } from "@/lib/useLanguages";
 import { HLJS_TO_LABEL } from "@/lib/useLanguageToLabel";
 import { midnightTheme } from "@/lib/editorTheme";
-
-const COLLECTIONS = [
-  "Core Utilities",
-  "React Hooks",
-  "API Helpers",
-  "Design Patterns",
-  "DevOps",
-  "Algorithms",
-];
+import { ApiError, apiClient } from "@/lib/api/client";
 
 // ── Zod schema ────────────────────────────────────────────────────────────────
 const snippetSchema = z.object({
@@ -51,10 +44,25 @@ const snippetSchema = z.object({
   description: z.string().max(300, "Max 300 characters").optional(),
   code: z.string().min(1, "Code cannot be empty"),
   language: z.string().min(1, "Select a language"),
-  collection: z.string().optional(),
+  collectionId: z.string().min(1, "Collection is required"),
   tags: z.array(z.string()).max(8, "Max 8 tags"),
   visibility: z.enum(["private", "shared"]),
 });
+
+type Collection = {
+  id: string;
+  name: string;
+};
+
+type CollectionsResponse = {
+  data: Collection[];
+};
+
+type CreateSnippetResponse = {
+  data: {
+    id: string;
+  };
+};
 
 // ── Field error ───────────────────────────────────────────────────────────────
 function FieldError({ message }: { message?: string }) {
@@ -250,7 +258,14 @@ export default function AddSnippetPage() {
   const router = useRouter();
   const [isAutoDetected, setIsAutoDetected] = useState(false);
   const [detectedLang, setDetectedLang] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const { data: collectionsResponse } = useQuery({
+    queryKey: ["collections"],
+    queryFn: () => apiClient.get<CollectionsResponse>("/api/collections"),
+  });
+  const collections = collectionsResponse?.data ?? [];
 
   const form = useForm({
     defaultValues: {
@@ -258,15 +273,41 @@ export default function AddSnippetPage() {
       description: "",
       code: "",
       language: "JavaScript",
-      collection: "",
+      collectionId: "",
       tags: [] as string[],
       visibility: "private" as "private" | "shared",
     },
     // validatorAdapter: zodValidator(),
     onSubmit: async ({ value }) => {
-      console.log("Submitting:", value);
-      await new Promise((r) => setTimeout(r, 800));
-      router.push("/dashboard");
+      setSubmitError(null);
+      const parsed = snippetSchema.safeParse(value);
+      if (!parsed.success) {
+        setSubmitError("Please fix the highlighted fields before saving.");
+        return;
+      }
+
+      try {
+        await apiClient.post<CreateSnippetResponse>(
+          "/api/snippets",
+          {
+            title: parsed.data.title,
+            description: parsed.data.description?.trim() || undefined,
+            code: parsed.data.code,
+            language: parsed.data.language,
+            collectionId: parsed.data.collectionId,
+            tags: parsed.data.tags,
+            isFavorite: false,
+          },
+          { timeoutMs: 12_000, retries: 1 },
+        );
+        router.push("/dashboard");
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 400) {
+          setSubmitError("Invalid snippet data. Please review title, code, and collection.");
+          return;
+        }
+        setSubmitError("Failed to save snippet. Please try again.");
+      }
     },
   });
 
@@ -338,6 +379,11 @@ export default function AddSnippetPage() {
           </button>
         </div>
       </div>
+      {submitError && (
+        <div className="px-5 py-2 border-b border-border-subtle bg-red-950/20">
+          <FieldError message={submitError} />
+        </div>
+      )}
 
       {/* ── Body ──────────────────────────────── */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
@@ -503,7 +549,7 @@ export default function AddSnippetPage() {
             </form.Field>
 
             {/* Collection */}
-            <form.Field name="collection">
+            <form.Field name="collectionId">
               {(field) => (
                 <div>
                   <label className="block text-[10px] font-semibold font-mono text-ink-muted tracking-[0.08em] uppercase mb-1.5">
@@ -524,17 +570,18 @@ export default function AddSnippetPage() {
                       <SelectValue placeholder="Select collection..." />
                     </SelectTrigger>
                     <SelectContent className="bg-surface-raised border-border-base font-mono text-[11px]">
-                      {COLLECTIONS.map((c) => (
+                      {collections.map((c) => (
                         <SelectItem
-                          key={c}
-                          value={c}
+                          key={c.id}
+                          value={c.id}
                           className="text-ink-secondary text-[11px] font-mono hover:bg-purple-950 hover:text-purple-300 focus:bg-purple-950 focus:text-purple-300 cursor-pointer"
                         >
-                          {c}
+                          {c.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                  <FieldError message={field.state.meta.errors?.[0]} />
                 </div>
               )}
             </form.Field>

@@ -1,5 +1,6 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -11,57 +12,23 @@ import {
   Server,
   Plus,
 } from "lucide-react";
+import { apiClient } from "@/lib/api/client";
 
-const collections = [
-  {
-    title: "React Hooks",
-    description:
-      "Reusable custom hooks for production-ready frontend state management.",
-    icon: Folder,
-    count: "24 SNIPPETS",
-    tags: ["ts", "js"],
-  },
-  {
-    title: "Database Utils",
-    description:
-      "Optimized queries and connection management for PostgreSQL and Redis.",
-    icon: Database,
-    count: "12 SNIPPETS",
-    tags: ["sql", "node"],
-  },
-  {
-    title: "CSS Layouts",
-    description:
-      "Modern Grid and Flexbox patterns for responsive UI architecture.",
-    icon: LayoutGrid,
-    count: "08 SNIPPETS",
-    tags: ["css", "html"],
-  },
-  {
-    title: "API Clients",
-    description:
-      "Standardized wrappers for third-party services and REST integrations.",
-    icon: Box,
-    count: "15 SNIPPETS",
-    tags: ["ts", "json"],
-  },
-  {
-    title: "Auth Patterns",
-    description:
-      "JWT handling, OAuth flows, and protected route logic.",
-    icon: Shield,
-    count: "06 SNIPPETS",
-    tags: ["ts", "go"],
-  },
-  {
-    title: "Infrastructure",
-    description:
-      "Dockerfiles, CI/CD pipelines, and shell scripting utilities.",
-    icon: Server,
-    count: "07 SNIPPETS",
-    tags: ["yaml", "bash"],
-  },
-];
+type CollectionApiItem = {
+  id: string;
+  name: string;
+  description: string | null;
+};
+
+type CollectionsResponse = {
+  data: CollectionApiItem[];
+};
+
+const ICONS = [Folder, Database, LayoutGrid, Box, Shield, Server] as const;
+
+function formatCount(count: number) {
+  return `${String(count).padStart(2, "0")} SNIPPETS`;
+}
 
 function Tag({ label }: { label: string }) {
   const map: Record<string, string> = {
@@ -88,6 +55,21 @@ function Tag({ label }: { label: string }) {
 }
 
 export default function CollectionPage() {
+  const {
+    data: collectionsResponse,
+    isLoading,
+    isError,
+  } = useQuery({
+    queryKey: ["collections"],
+    queryFn: () =>
+      apiClient.get<CollectionsResponse>("/api/collections", {
+        timeoutMs: 12_000,
+        retries: 2,
+      }),
+  });
+
+  const collections = collectionsResponse?.data ?? [];
+
   return (
     <div className="flex-1 bg-surface-base p-6">
       {/* Header */}
@@ -119,45 +101,58 @@ export default function CollectionPage() {
 
       {/* Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        {collections.map((item, index) => {
-          const Icon = item.icon;
+        {isLoading ? (
+          <div className="col-span-full py-10 text-center text-sm text-ink-muted">
+            Loading collections...
+          </div>
+        ) : isError ? (
+          <div className="col-span-full py-10 text-center text-sm text-red-400">
+            Failed to load collections.
+          </div>
+        ) : collections.length === 0 ? (
+          <div className="col-span-full py-10 text-center text-sm text-ink-muted">
+            No collections found yet.
+          </div>
+        ) : (
+          collections.map((item, index) => {
+            const Icon = ICONS[index % ICONS.length];
 
-          return (
-            <Card
-              key={index}
-              className="group cursor-pointer border border-border-base bg-surface-default hover:bg-surface-hover transition"
-            >
-              <CardContent className="p-5 space-y-4">
-                {/* Top */}
-                <div className="flex items-center justify-between">
-                  <div className="p-2 rounded-md bg-purple-950 text-purple-400">
-                    <Icon size={18} />
+            return (
+              <Card
+                key={item.id}
+                className="group cursor-pointer border border-border-base bg-surface-default hover:bg-surface-hover transition"
+              >
+                <CardContent className="p-5 space-y-4">
+                  {/* Top */}
+                  <div className="flex items-center justify-between">
+                    <div className="p-2 rounded-md bg-purple-950 text-purple-400">
+                      <Icon size={18} />
+                    </div>
+                    <span className="text-[10px] text-ink-muted">
+                      {formatCount(0)}
+                    </span>
                   </div>
-                  <span className="text-[10px] text-ink-muted">
-                    {item.count}
-                  </span>
-                </div>
 
-                {/* Content */}
-                <div>
-                  <h3 className="text-sm font-semibold text-ink-primary">
-                    {item.title}
-                  </h3>
-                  <p className="text-xs text-ink-secondary mt-1">
-                    {item.description}
-                  </p>
-                </div>
+                  {/* Content */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-ink-primary">
+                      {item.name}
+                    </h3>
+                    <p className="text-xs text-ink-secondary mt-1">
+                      {item.description || "No description provided."}
+                    </p>
+                  </div>
 
-                {/* Tags */}
-                <div className="flex gap-2">
-                  {item.tags.map((tag) => (
-                    <Tag key={tag} label={tag} />
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
+                  {/* Tags placeholder */}
+                  <div className="flex gap-2">
+                    <Tag label="db" />
+                    <Tag label="collection" />
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })
+        )}
 
         {/* New Collection */}
         <div className="border border-dashed border-border-base rounded-lg flex items-center justify-center min-h-45 hover:border-border-hover transition cursor-pointer">

@@ -1,159 +1,72 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Filter, Code2 } from "lucide-react";
 import SnippetCard, {
+  Language,
   Snippet,
 } from "@/components/shared/SnippetCard";
+import { apiClient } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
 
-// ── Mock data ─────────────────────────────────────────────────────────────────
-const MOCK_SNIPPETS: Snippet[] = [
-  {
-    id: "1",
-    title: "useDebounce",
-    description: "Custom hook for delaying value updates.",
-    language: "REACT",
-    tags: ["hooks", "utils"],
-    starred: false,
-    addedAt: "2d ago",
-    code: `import { useState, useEffect } from 'react'
+type SnippetApiItem = {
+  id: string;
+  title: string;
+  description: string | null;
+  code: string;
+  language: string;
+  tags: string[];
+  isFavorite: boolean;
+  createdAt: string;
+};
 
-export function useDebounce(value, delay) {
-  const [debouncedValue, setDebounced] = useState(value)
+type SnippetsResponse = {
+  data: SnippetApiItem[];
+};
 
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedValue(value)
-    }, delay)
+const SUPPORTED_LANGUAGES: Set<Language> = new Set([
+  "REACT",
+  "JS",
+  "TS",
+  "JAVA",
+  "PY",
+  "CSS",
+  "YAML",
+  "RUST",
+  "SQL",
+  "BASH",
+  "GO",
+]);
 
-    return () => {
-      clearTimeout(handler)
-    }
-  }, [value, delay])
-
-  return debouncedValue
-}`,
-  },
-  {
-    id: "2",
-    title: "Singleton Pattern",
-    description: "Double-checked locking implementation.",
-    language: "JAVA",
-    tags: ["patterns", "oop"],
-    starred: true,
-    addedAt: "5d ago",
-    code: `public class Singleton {
-  private static volatile Singleton instance
-
-  private Singleton() {}
-
-  public static Singleton getInstance() {
-    if (instance == null) {
-      synchronized (Singleton.class) {
-        if (instance == null) {
-          instance = new Singleton()
-        }
-      }
-    }
-    return instance
-  }
-}`,
-  },
-  {
-    id: "3",
-    title: "Deep Clone Object",
-    description: "Modern structuredClone or fallback.",
-    language: "JS",
-    tags: ["utils"],
-    starred: false,
-    addedAt: "1w ago",
-    code: `const deepClone = (obj) => {
-  if (typeof structuredClone === 'function') {
-    return structuredClone(obj)
-  }
-
-  // Fallback for older environments
-  return JSON.parse(JSON.stringify(obj))
+function normalizeLanguage(language: string): Language {
+  const upper = language.toUpperCase();
+  return SUPPORTED_LANGUAGES.has(upper as Language) ? (upper as Language) : "JS";
 }
 
-const original = { a: 1, b: { c: 2 } }
-const copy = deepClone(original)`,
-  },
-  {
-    id: "4",
-    title: "GH Actions Build",
-    description: "Standard Node.js CI pipeline configuration.",
-    language: "YAML",
-    tags: ["ci", "devops"],
-    starred: false,
-    addedAt: "2w ago",
-    code: `name: Node.js CI
+function formatAddedAt(dateStr: string): string {
+  const createdAt = new Date(dateStr).getTime();
+  if (Number.isNaN(createdAt)) return "now";
 
-on:
-  push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+  const diffMs = Date.now() - createdAt;
+  const minutes = Math.floor(diffMs / (1000 * 60));
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Use Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '18.x'`,
-  },
-  {
-    id: "5",
-    title: "fetch with retry",
-    description: "Retry failed requests with exponential backoff.",
-    language: "TS",
-    tags: ["api", "async"],
-    starred: true,
-    addedAt: "3d ago",
-    code: `async function fetchWithRetry(
-  url: string,
-  n: number = 3
-): Promise<Response> {
-  for (let i = 0; i < n; i++) {
-    try {
-      const response = await fetch(url)
-      if (!response.ok) throw new Error(response.statusText)
-      return response
-    } catch (err) {
-      if (i === n - 1) throw err
-      await new Promise(r => setTimeout(r, 2 ** i * 1000))
-    }
-  }
-  throw new Error('Max retries exceeded')
-}`,
-  },
-  {
-    id: "6",
-    title: "Tailwind cx helper",
-    description: "Class merging utility with conditional support.",
-    language: "TS",
-    tags: ["utils", "tailwind"],
-    starred: false,
-    addedAt: "4d ago",
-    code: `import { clsx, type ClassValue } from 'clsx'
-import { twMerge } from 'tailwind-merge'
-
-export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs))
+  if (minutes < 1) return "now";
+  if (minutes < 60) return `${minutes}m ago`;
+  if (hours < 24) return `${hours}h ago`;
+  if (days < 7) return `${days}d ago`;
+  return `${Math.floor(days / 7)}w ago`;
 }
 
-// Usage
-const cls = cn(
-  'px-4 py-2 rounded',
-  isActive && 'bg-purple-600',
-  className
-)`,
-  },
-];
+async function fetchSnippets(): Promise<SnippetApiItem[]> {
+  const json = await apiClient.get<SnippetsResponse>("/api/snippets", {
+    timeoutMs: 12_000,
+    retries: 2,
+  });
+  return json.data ?? [];
+}
 
 // ── Filter tabs ───────────────────────────────────────────────────────────────
 const FILTERS: { label: string; value: string }[] = [
@@ -167,13 +80,38 @@ const FILTERS: { label: string; value: string }[] = [
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function DashboardPage() {
-  const [snippets, setSnippets] = useState<Snippet[]>(MOCK_SNIPPETS);
   const [activeFilter, setFilter] = useState("all");
+  const [starredOverrides, setStarredOverrides] = useState<Record<string, boolean>>({});
+
+  const {
+    data: apiSnippets = [],
+    isLoading,
+    isError,
+  } = useQuery({
+    queryKey: ["snippets"],
+    queryFn: fetchSnippets,
+  });
+
+  const snippets = useMemo<Snippet[]>(
+    () =>
+      apiSnippets.map((item) => ({
+        id: item.id,
+        title: item.title,
+        description: item.description ?? "",
+        code: item.code,
+        language: normalizeLanguage(item.language),
+        tags: item.tags ?? [],
+        starred: starredOverrides[item.id] ?? item.isFavorite,
+        addedAt: formatAddedAt(item.createdAt),
+      })),
+    [apiSnippets, starredOverrides],
+  );
 
   const handleStar = (id: string) => {
-    setSnippets((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, starred: !s.starred } : s)),
-    );
+    setStarredOverrides((prev) => {
+      const current = prev[id] ?? snippets.find((s) => s.id === id)?.starred ?? false;
+      return { ...prev, [id]: !current };
+    });
   };
 
   const filtered = snippets.filter((s) => {
@@ -223,7 +161,15 @@ export default function DashboardPage() {
       </div>
 
       {/* ── Snippet grid ─────────────────────── */}
-      {filtered.length === 0 ? (
+      {isLoading ? (
+        <div className="py-24 text-center text-[13px] text-[#666] font-mono">
+          Loading snippets...
+        </div>
+      ) : isError ? (
+        <div className="py-24 text-center text-[13px] text-red-400 font-mono">
+          Failed to load snippets.
+        </div>
+      ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 text-center">
           <div className="w-12 h-12 rounded-xl bg-purple-950 border border-[#3d2f6e] flex items-center justify-center mb-4">
             <Code2 size={20} className="text-purple-600" />
