@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Filter, Code2 } from "lucide-react";
 import SnippetCard, {
   Language,
@@ -81,7 +82,7 @@ const FILTERS: { label: string; value: string }[] = [
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function DashboardPage() {
   const [activeFilter, setFilter] = useState("all");
-  const [starredOverrides, setStarredOverrides] = useState<Record<string, boolean>>({});
+  const queryClient = useQueryClient();
 
   const {
     data: apiSnippets = [],
@@ -101,17 +102,33 @@ export default function DashboardPage() {
         code: item.code,
         language: normalizeLanguage(item.language),
         tags: item.tags ?? [],
-        starred: starredOverrides[item.id] ?? item.isFavorite,
+        starred: item.isFavorite,
         addedAt: formatAddedAt(item.createdAt),
       })),
-    [apiSnippets, starredOverrides],
+    [apiSnippets],
   );
 
+  const favoriteMutation = useMutation({
+    mutationFn: ({ id, isFavorite }: { id: string; isFavorite: boolean }) =>
+      apiClient.patch(`/api/snippets/${id}/favorite`, { isFavorite }),
+    onMutate: async ({ id, isFavorite }) => {
+      queryClient.setQueryData<SnippetApiItem[]>(["snippets"], (prev = []) =>
+        prev.map((snippet) =>
+          snippet.id === id ? { ...snippet, isFavorite } : snippet,
+        ),
+      );
+    },
+    onSettled: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["snippets"] }),
+        queryClient.invalidateQueries({ queryKey: ["collection-snippets"] }),
+      ]);
+    },
+  });
+
   const handleStar = (id: string) => {
-    setStarredOverrides((prev) => {
-      const current = prev[id] ?? snippets.find((s) => s.id === id)?.starred ?? false;
-      return { ...prev, [id]: !current };
-    });
+    const current = snippets.find((s) => s.id === id)?.starred ?? false;
+    favoriteMutation.mutate({ id, isFavorite: !current });
   };
 
   const filtered = snippets.filter((s) => {
@@ -123,7 +140,7 @@ export default function DashboardPage() {
   });
 
   return (
-    <div className="p-6 max-w-350">
+    <div className="flex-1 bg-surface-base p-6">
       {/* ── Page header ──────────────────────── */}
       <div className="flex items-end justify-between mb-6">
         <div>

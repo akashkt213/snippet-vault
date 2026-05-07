@@ -569,12 +569,12 @@ export default function AddSnippetPage() {
                     >
                       <SelectValue placeholder="Select collection..." />
                     </SelectTrigger>
-                    <SelectContent className="bg-surface-raised border-border-base font-mono text-[11px]">
+                    <SelectContent className="bg-surface-hover border-border-base font-mono text-[11px]">
                       {collections.map((c) => (
                         <SelectItem
                           key={c.id}
                           value={c.id}
-                          className="text-ink-secondary text-[11px] font-mono hover:bg-purple-950 hover:text-purple-300 focus:bg-purple-950 focus:text-purple-300 cursor-pointer"
+                          className="text-[11px] font-mono hover:bg-purple-950 hover:text-purple-300 focus:bg-purple-200 focus:text-purple-300 text-purple-300 cursor-pointer"
                         >
                           {c.name}
                         </SelectItem>

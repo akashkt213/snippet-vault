@@ -16,8 +16,20 @@ export async function createSnippet(input: CreateSnippetInput) {
   });
 }
 
-export async function listSnippets() {
+export async function updateSnippetFavorite(snippetId: string, isFavorite: boolean) {
+  return prisma.snippet.update({
+    where: { id: snippetId },
+    data: { isFavorite },
+  });
+}
+
+export async function listSnippets(collectionId?: string) {
   return prisma.snippet.findMany({
+    where: collectionId
+      ? {
+          collectionId,
+        }
+      : undefined,
     include: {
       collection: true,
     },

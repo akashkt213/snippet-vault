@@ -1,8 +1,10 @@
 import { createSnippetSchema } from "@/lib/validators/snippet";
 import { createSnippetService, listSnippetsService } from "@/server/services/snippetService";
 
-export async function GET() {
-  const snippets = await listSnippetsService();
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const collectionId = searchParams.get("collectionId") ?? undefined;
+  const snippets = await listSnippetsService(collectionId);
   return Response.json({ data: snippets });
 }
 

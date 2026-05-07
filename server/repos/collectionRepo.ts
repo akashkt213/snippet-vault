@@ -11,7 +11,21 @@ export async function createCollection(input: CreateCollectionInput) {
 }
 
 export async function listCollections() {
-  return prisma.collection.findMany({
+  const collections = await prisma.collection.findMany({
+    include: {
+      _count: {
+        select: {
+          snippets: true,
+        },
+      },
+    },
     orderBy: { updatedAt: "desc" },
   });
+
+  return collections.map((collection) => ({
+    id: collection.id,
+    name: collection.name,
+    description: collection.description,
+    snippetCount: collection._count.snippets,
+  }));
 }
