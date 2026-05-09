@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Filter, Code2 } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import SnippetCard, {
   Language,
   Snippet,
@@ -82,7 +83,9 @@ const FILTERS: { label: string; value: string }[] = [
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function DashboardPage() {
   const [activeFilter, setFilter] = useState("all");
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
+  const searchQuery = (searchParams.get("search") ?? "").trim().toLowerCase();
 
   const {
     data: apiSnippets = [],
@@ -132,11 +135,21 @@ export default function DashboardPage() {
   };
 
   const filtered = snippets.filter((s) => {
-    if (activeFilter === "all") return true;
-    if (activeFilter === "starred") return s.starred;
-    if (activeFilter === "JS")
-      return s.language === "JS" || s.language === "TS";
-    return s.language === activeFilter;
+    const matchesFilter = (() => {
+      if (activeFilter === "all") return true;
+      if (activeFilter === "starred") return s.starred;
+      if (activeFilter === "JS") return s.language === "JS" || s.language === "TS";
+      return s.language === activeFilter;
+    })();
+    if (!matchesFilter) return false;
+
+    if (!searchQuery) return true;
+    const inTitle = s.title.toLowerCase().includes(searchQuery);
+    const inDescription = s.description.toLowerCase().includes(searchQuery);
+    const inTags = (s.tags ?? []).some((tag) =>
+      tag.toLowerCase().includes(searchQuery),
+    );
+    return inTitle || inDescription || inTags;
   });
 
   return (
@@ -148,7 +161,9 @@ export default function DashboardPage() {
             All Snippets
           </h1>
           <p className="text-[12px] text-[#555555] font-mono mt-1">
-            {snippets.length} total items &middot; Sorted by recently added
+            {filtered.length} of {snippets.length} items
+            {searchQuery ? ` matching "${searchQuery}"` : ""}
+            {" "} &middot; Sorted by recently added
           </p>
         </div>
 

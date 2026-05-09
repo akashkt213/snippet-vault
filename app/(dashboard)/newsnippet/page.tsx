@@ -27,6 +27,7 @@ import {
   Redo2,
   X,
   Save,
+  Loader2,
   Lock,
   Users,
   AlertCircle,
@@ -375,7 +376,11 @@ export default function AddSnippetPage() {
               "disabled:opacity-50 disabled:cursor-not-allowed",
             )}
           >
-            <Save size={12} />
+            {form.state.isSubmitting ? (
+              <Loader2 size={12} className="animate-spin" />
+            ) : (
+              <Save size={12} />
+            )}
             {form.state.isSubmitting ? "Saving..." : "Save Snippet"}
           </button>
         </div>
@@ -673,7 +678,11 @@ export default function AddSnippetPage() {
                 "disabled:opacity-50 disabled:cursor-not-allowed",
               )}
             >
-              <Save size={11} />
+              {form.state.isSubmitting ? (
+                <Loader2 size={11} className="animate-spin" />
+              ) : (
+                <Save size={11} />
+              )}
               {form.state.isSubmitting ? "Saving..." : "Save Snippet"}
             </button>
           </div>
