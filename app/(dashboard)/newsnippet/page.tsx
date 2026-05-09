@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";
@@ -260,6 +260,7 @@ export default function AddSnippetPage() {
   const [detectedLang, setDetectedLang] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const title = useSearchParams().get("title");
 
   const { data: collectionsResponse } = useQuery({
     queryKey: ["collections"],
@@ -490,6 +491,7 @@ export default function AddSnippetPage() {
             {/* Title */}
             <form.Field
               name="title"
+              defaultValue={title ?? ""}
               validators={{
                 onSubmit: z
                   .string()
