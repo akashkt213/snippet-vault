@@ -1,6 +1,21 @@
+import { Prisma } from "@prisma/client";
+
 import { prisma } from "@/lib/db/prisma";
 import { CreateSnippetInput } from "@/lib/validators/snippet";
 import { SearchSnippetResult } from "@/server/types";
+
+const searchSnippetSelect = {
+  id: true,
+  title: true,
+  description: true,
+  code: true,
+  language: true,
+  tags: true,
+  isFavorite: true,
+  collectionId: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;
 
 export async function createSnippet(input: CreateSnippetInput, userId: string) {
   return prisma.snippet.create({
@@ -73,31 +88,63 @@ export async function listSnippets(userId: string, collectionId?: string) {
   });
 }
 
-export async function searchSnippetsBasic(
+export async function searchSnippets(
   userId: string,
   query: string,
   limit = 10,
 ): Promise<SearchSnippetResult[]> {
-  return prisma.snippet.findMany({
-    where: {
-      userId,
-      OR: [
-        { title: { contains: query, mode: "insensitive" } },
-        { description: { contains: query, mode: "insensitive" } },
-        { language: { contains: query, mode: "insensitive" } },
-        { code: { contains: query, mode: "insensitive" } },
-        { tags: { hasSome: [query] } },
-      ],
-    },
-    select: {
-      id: true,
-      title: true,
-      description: true,
-      language: true,
-      tags: true,
-      collectionId: true,
-    },
-    take: limit,
-    orderBy: { updatedAt: "desc" },
-  });
+  const trimmed = query.trim();
+
+  if (!trimmed) {
+    return prisma.snippet.findMany({
+      where: { userId },
+      select: searchSnippetSelect,
+      orderBy: { updatedAt: "desc" },
+      take: limit,
+    });
+  }
+
+  return prisma.$queryRaw<SearchSnippetResult[]>(Prisma.sql`
+    SELECT
+      s.id,
+      s.title,
+      s.description,
+      s.code,
+      s.language,
+      s.tags,
+      s."isFavorite",
+      s."collectionId",
+      s."createdAt",
+      s."updatedAt"
+    FROM "Snippet" s
+    WHERE s."userId" = ${userId}
+      AND (
+        s.title ILIKE '%' || ${trimmed} || '%'
+        OR COALESCE(s.description, '') ILIKE '%' || ${trimmed} || '%'
+        OR s.language ILIKE '%' || ${trimmed} || '%'
+        OR s.code ILIKE '%' || ${trimmed} || '%'
+        OR "immutable_array_to_string"(s.tags, ' ') ILIKE '%' || ${trimmed} || '%'
+        OR s.title % ${trimmed}
+        OR COALESCE(s.description, '') % ${trimmed}
+        OR s.language % ${trimmed}
+        OR s.code % ${trimmed}
+        OR "immutable_array_to_string"(s.tags, ' ') % ${trimmed}
+      )
+    ORDER BY
+      CASE
+        WHEN s.title ILIKE ${trimmed} || '%' THEN 4
+        WHEN s.title ILIKE '%' || ${trimmed} || '%' THEN 3
+        WHEN COALESCE(s.description, '') ILIKE '%' || ${trimmed} || '%' THEN 2
+        ELSE 1
+      END DESC,
+      GREATEST(
+        similarity(s.title, ${trimmed}),
+        similarity(COALESCE(s.description, ''), ${trimmed}),
+        similarity(s.language, ${trimmed}),
+        similarity(s.code, ${trimmed}),
+        similarity("immutable_array_to_string"(s.tags, ' '), ${trimmed})
+      ) DESC,
+      s."updatedAt" DESC
+    LIMIT ${limit}
+  `);
 }

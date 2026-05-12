@@ -11,6 +11,8 @@ import SnippetCard, {
   Snippet,
 } from "@/components/shared/SnippetCard";
 import { apiClient } from "@/lib/api/client";
+import { fetchSnippetSearch } from "@/lib/api/snippetSearch";
+import { useDebouncedValue } from "@/lib/hooks/useDebouncedValue";
 import { cn } from "@/lib/utils";
 
 type SnippetApiItem = {
@@ -87,20 +89,37 @@ export default function DashboardPage() {
   const [activeFilter, setFilter] = useState("all");
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
-  const searchQuery = (searchParams.get("search") ?? "").trim().toLowerCase();
+  const searchQuery = (searchParams.get("search") ?? "").trim();
+  const debouncedSearchQuery = useDebouncedValue(searchQuery, 300);
+  const isSearching = debouncedSearchQuery.length > 0;
 
   const {
     data: apiSnippets = [],
-    isLoading,
-    isError,
+    isLoading: isListLoading,
+    isError: isListError,
   } = useQuery({
     queryKey: ["snippets"],
     queryFn: fetchSnippets,
+    enabled: !isSearching,
   });
+
+  const {
+    data: searchResults = [],
+    isLoading: isSearchLoading,
+    isError: isSearchError,
+  } = useQuery({
+    queryKey: ["snippet-search", debouncedSearchQuery, 50],
+    queryFn: () => fetchSnippetSearch(debouncedSearchQuery, 50),
+    enabled: isSearching,
+  });
+
+  const sourceSnippets = isSearching ? searchResults : apiSnippets;
+  const isLoading = isSearching ? isSearchLoading : isListLoading;
+  const isError = isSearching ? isSearchError : isListError;
 
   const snippets = useMemo<Snippet[]>(
     () =>
-      apiSnippets.map((item) => ({
+      sourceSnippets.map((item) => ({
         id: item.id,
         title: item.title,
         description: item.description ?? "",
@@ -110,7 +129,7 @@ export default function DashboardPage() {
         starred: item.isFavorite,
         addedAt: formatAddedAt(item.createdAt),
       })),
-    [apiSnippets],
+    [sourceSnippets],
   );
 
   const favoriteMutation = useMutation({
@@ -126,6 +145,7 @@ export default function DashboardPage() {
     onSettled: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["snippets"] }),
+        queryClient.invalidateQueries({ queryKey: ["snippet-search"] }),
         queryClient.invalidateQueries({ queryKey: ["collection-snippets"] }),
       ]);
     },
@@ -141,6 +161,7 @@ export default function DashboardPage() {
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["snippets"] }),
+        queryClient.invalidateQueries({ queryKey: ["snippet-search"] }),
         queryClient.invalidateQueries({ queryKey: ["collection-snippets"] }),
         queryClient.invalidateQueries({ queryKey: ["collections"] }),
       ]);
@@ -160,21 +181,10 @@ export default function DashboardPage() {
   };
 
   const filtered = snippets.filter((s) => {
-    const matchesFilter = (() => {
-      if (activeFilter === "all") return true;
-      if (activeFilter === "starred") return s.starred;
-      if (activeFilter === "JS") return s.language === "JS" || s.language === "TS";
-      return s.language === activeFilter;
-    })();
-    if (!matchesFilter) return false;
-
-    if (!searchQuery) return true;
-    const inTitle = s.title.toLowerCase().includes(searchQuery);
-    const inDescription = s.description.toLowerCase().includes(searchQuery);
-    const inTags = (s.tags ?? []).some((tag) =>
-      tag.toLowerCase().includes(searchQuery),
-    );
-    return inTitle || inDescription || inTags;
+    if (activeFilter === "all") return true;
+    if (activeFilter === "starred") return s.starred;
+    if (activeFilter === "JS") return s.language === "JS" || s.language === "TS";
+    return s.language === activeFilter;
   });
 
   return (

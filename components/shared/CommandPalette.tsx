@@ -24,22 +24,10 @@ import {
   CornerDownLeft,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { apiClient } from "@/lib/api/client";
+import { fetchSnippetSearch } from "@/lib/api/snippetSearch";
+import { useDebouncedValue } from "@/lib/hooks/useDebouncedValue";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-type SnippetApiItem = {
-  id: string;
-  title: string;
-  description: string | null;
-  language: string;
-  tags: string[];
-  createdAt: string;
-};
-
-type SnippetsResponse = {
-  data: SnippetApiItem[];
-};
-
 type PaletteSnippet = {
   id: string;
   title: string;
@@ -65,43 +53,6 @@ function formatLastEdited(dateStr: string): string {
   return `${Math.floor(days / 7)}w ago`;
 }
 
-// ── Fuzzy ─────────────────────────────────────────────────────────────────────
-function fuzzyScore(str: string, q: string) {
-  const source = str.toLowerCase();
-  const query = q.toLowerCase().trim();
-  if (!query) return 0;
-
-  const exactIndex = source.indexOf(query);
-  if (exactIndex !== -1) {
-    const startBonus = exactIndex === 0 ? 60 : 0;
-    return 200 + startBonus - exactIndex;
-  }
-
-  let score = 0;
-  let streak = 0;
-  let gapPenalty = 0;
-
-  // Ordered subsequence matcher with bonus for contiguous chars.
-  // This makes "ftr" match "fetch with retry" while ranking tighter matches higher.
-  let foundAny = false;
-  let si = 0;
-  for (let qi = 0; qi < query.length; qi++) {
-    while (si < source.length && source[si] !== query[qi]) {
-      si++;
-      gapPenalty += 1;
-      streak = 0;
-    }
-    if (si >= source.length) return null;
-    foundAny = true;
-    streak += 1;
-    score += 12 + streak * 4;
-    si++;
-  }
-
-  if (!foundAny) return null;
-  return Math.max(1, score - gapPenalty);
-}
-
 // ── Shared classnames ─────────────────────────────────────────────────────────
 const baseItem =
   "flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-colors duration-100 focus:outline-none data-[selected=true]:bg-[#252535] hover:bg-[#252535]";
@@ -121,16 +72,13 @@ export default function CommandPalette({
 }: CommandPaletteProps) {
   const router = useRouter();
   const [query, setQuery] = useState("");
-  const { data: apiSnippets = [], isLoading } = useQuery({
-    queryKey: ["snippets"],
-    queryFn: () =>
-      apiClient
-        .get<SnippetsResponse>("/api/snippets", {
-          timeoutMs: 12_000,
-          retries: 1,
-        })
-        .then((json) => json.data ?? [])
-        .catch(() => []),
+  const debouncedQuery = useDebouncedValue(query, 250);
+  const searchLimit = query.trim() ? 10 : 6;
+  const { data: searchResults = [], isLoading } = useQuery({
+    queryKey: ["snippet-search", debouncedQuery, searchLimit],
+    queryFn: () => fetchSnippetSearch(debouncedQuery, searchLimit),
+    enabled: open,
+    staleTime: 30_000,
   });
 
   const handleOpenChange = (nextOpen: boolean) => {
@@ -143,42 +91,18 @@ export default function CommandPalette({
     router.push(href);
   };
 
-  const allSnippets = useMemo<PaletteSnippet[]>(
+  const matchedSnippets = useMemo<PaletteSnippet[]>(
     () =>
-      apiSnippets.map((snippet) => ({
+      searchResults.map((snippet) => ({
         id: snippet.id,
         title: snippet.title,
         description: snippet.description ?? "",
         language: snippet.language,
         tags: snippet.tags ?? [],
-        lastEdited: formatLastEdited(snippet.createdAt),
+        lastEdited: formatLastEdited(snippet.updatedAt),
       })),
-    [apiSnippets],
+    [searchResults],
   );
-
-  const matchedSnippets = useMemo(() => {
-    if (!query.trim()) {
-      return allSnippets.slice(0, 6);
-    }
-
-    return allSnippets
-      .map((snippet) => {
-        const titleScore = fuzzyScore(snippet.title, query) ?? 0;
-        const languageScore = fuzzyScore(snippet.language, query) ?? 0;
-        const descriptionScore = fuzzyScore(snippet.description, query) ?? 0;
-        const tagScore = Math.max(
-          0,
-          ...snippet.tags.map((tag) => fuzzyScore(tag, query) ?? 0),
-        );
-        const totalScore =
-          titleScore * 4 + tagScore * 3 + languageScore * 2 + descriptionScore;
-        return { snippet, totalScore };
-      })
-      .filter((item) => item.totalScore > 0)
-      .sort((a, b) => b.totalScore - a.totalScore)
-      .slice(0, 10)
-      .map((item) => item.snippet);
-  }, [allSnippets, query]);
 
   const collectionHint = query
     ? `Collections / ${query.charAt(0).toUpperCase() + query.slice(1)}`
@@ -218,8 +142,6 @@ export default function CommandPalette({
         >
           {/* ── Input row ──────────────────────── */}
           <div className="flex items-center gap-3 px-4 py-3 border-b border-[#25252f]">
-            <Search size={15} className="text-[#666680] shrink-0" />
-
             <CommandInput
               value={query}
               onValueChange={setQuery}
@@ -312,7 +234,7 @@ export default function CommandPalette({
                   <CommandItem
                     key={snippet.id}
                     value={`${snippet.id}-${snippet.title}`}
-                    onSelect={() => navigate(`/dashboard`)}
+                    onSelect={() => navigate(`/snippets/${snippet.id}`)}
                     className={baseItem}
                   >
                     <Code2

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import {
   Search,
   Plus,
@@ -12,33 +13,11 @@ import {
   X,
   Code2,
 } from "lucide-react";
+import { fetchSnippetSearch } from "@/lib/api/snippetSearch";
+import { useDebouncedValue } from "@/lib/hooks/useDebouncedValue";
 import { cn } from "@/lib/utils";
 import CommandPalette from "./CommandPalette";
 
-// ── Types ─────────────────────────────────────────────────────────────────────
-type Snippet = {
-  id: number;
-  title: string;
-  language: string;
-  tags: string[];
-};
-
-// ── Mock data ─────────────────────────────────────────────────────────────────
-const SNIPPETS: Snippet[] = [
-  { id: 1, title: "useDebounce", language: "REACT", tags: ["hooks", "utils"] },
-  { id: 2, title: "Singleton Pattern", language: "JAVA", tags: ["patterns"] },
-  { id: 3, title: "Deep Clone Object", language: "JS", tags: ["utils"] },
-  {
-    id: 4,
-    title: "GH Actions Build",
-    language: "YAML",
-    tags: ["ci", "devops"],
-  },
-  { id: 5, title: "fetch with retry", language: "TS", tags: ["api", "async"] },
-  { id: 6, title: "useMemoizedCallback", language: "REACT", tags: ["hooks"] },
-];
-
-// ── Language tag colours (bg / text) ──────────────────────────────────────────
 const LANG: Record<string, { bg: string; text: string }> = {
   REACT: { bg: "#1a2340", text: "#93c5fd" },
   JAVA: { bg: "#2d1a1f", text: "#fda4af" },
@@ -49,20 +28,6 @@ const LANG: Record<string, { bg: string; text: string }> = {
   CSS: { bg: "#1a2340", text: "#93c5fd" },
 };
 
-// ── Fuzzy search ──────────────────────────────────────────────────────────────
-function fuzzy(str: string, q: string) {
-  str = str.toLowerCase();
-  q = q.toLowerCase();
-  let si = 0;
-  for (let qi = 0; qi < q.length; qi++) {
-    while (si < str.length && str[si] !== q[qi]) si++;
-    if (si >= str.length) return false;
-    si++;
-  }
-  return true;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 export default function Navbar() {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -71,34 +36,16 @@ export default function Navbar() {
   const [open, setOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [selectedIdx, setSelectedIdx] = useState(0);
+  const debouncedQuery = useDebouncedValue(query, 250);
 
-  const results = query
-    ? SNIPPETS.filter(
-        (s) =>
-          fuzzy(s.title, query) ||
-          fuzzy(s.language, query) ||
-          s.tags.some((t) => fuzzy(t, query)),
-      )
-    : [];
+  const { data: results = [], isFetching } = useQuery({
+    queryKey: ["snippet-search", debouncedQuery, 8],
+    queryFn: () => fetchSnippetSearch(debouncedQuery, 8),
+    enabled: debouncedQuery.trim().length > 0,
+    staleTime: 30_000,
+  });
 
   const showDrop = open && query.length > 0;
-
-  // Global Cmd+K / Ctrl+K
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
-        e.preventDefault();
-        inputRef.current?.focus();
-      }
-      if (e.key === "Escape") {
-        setQuery("");
-        setOpen(false);
-        inputRef.current?.blur();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -106,10 +53,19 @@ export default function Navbar() {
         e.preventDefault();
         setPaletteOpen((prev) => !prev);
       }
+      if (e.key === "Escape") {
+        setQuery("");
+        setOpen(false);
+        inputRef.current?.blur();
+      }
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
   }, []);
+
+  useEffect(() => {
+    setSelectedIdx(0);
+  }, [debouncedQuery, results.length]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (!showDrop) return;
@@ -122,16 +78,16 @@ export default function Navbar() {
       setSelectedIdx((i) => Math.max(i - 1, 0));
     }
     if (e.key === "Enter" && results[selectedIdx]) {
+      const snippetId = results[selectedIdx].id;
       setQuery("");
       setOpen(false);
+      router.push(`/snippets/${snippetId}`);
     }
   };
 
   return (
     <header className="h-14 flex items-center gap-3.5 px-5 bg-surface-shell border-b border-border-subtle sticky top-0 z-50">
-      {/* ── Search bar ──────────────────────────── */}
       <div className="relative flex-1 max-w-115">
-        {/* Input wrapper */}
         <div
           className={cn(
             "flex items-center gap-2 px-2.5 rounded-lg",
@@ -139,18 +95,13 @@ export default function Navbar() {
             open ? "border-[#3d2f6e]" : "border-border-base",
           )}
         >
-          {/* Search icon */}
           <Search size={13} className="text-[#444444] shrink-0" />
 
-          {/* Input */}
           <input
             ref={inputRef}
             type="text"
             value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              setSelectedIdx(0);
-            }}
+            onChange={(e) => setQuery(e.target.value)}
             onFocus={() => setOpen(true)}
             onBlur={() => setTimeout(() => setOpen(false), 150)}
             onKeyDown={handleKeyDown}
@@ -164,12 +115,10 @@ export default function Navbar() {
             )}
           />
 
-          {/* Clear button OR Cmd+K badge */}
           {query ? (
             <button
               onMouseDown={() => {
                 setQuery("");
-                setSelectedIdx(0);
                 inputRef.current?.focus();
               }}
               className="flex items-center justify-center text-[#555555] hover:text-ink-secondary transition-colors p-0.5 rounded"
@@ -183,31 +132,35 @@ export default function Navbar() {
           )}
         </div>
 
-        {/* ── Dropdown ──────────────────────────── */}
         {showDrop && (
           <div className="absolute top-[calc(100%+6px)] left-0 right-0 bg-surface-raised border border-border-base rounded-xl overflow-hidden z-50 py-1">
-            {results.length === 0 ? (
+            {isFetching ? (
+              <p className="text-[12px] text-[#555555] text-center py-4 font-mono">
+                Searching...
+              </p>
+            ) : results.length === 0 ? (
               <p className="text-[12px] text-[#555555] text-center py-4 font-mono">
                 No results for &quot;{query}&quot;
               </p>
             ) : (
               <>
-                {/* Section label */}
                 <p className="text-[9px] font-semibold tracking-widest uppercase text-[#444444] px-3 pt-2 pb-1 font-mono">
                   snippets
                 </p>
 
                 {results.map((item, i) => {
-                  const lang = LANG[item.language] ?? {
+                  const lang = LANG[item.language.toUpperCase()] ?? {
                     bg: "#1e1e1e",
                     text: "#aaaaaa",
                   };
+
                   return (
                     <button
                       key={item.id}
                       onMouseDown={() => {
                         setQuery("");
                         setOpen(false);
+                        router.push(`/snippets/${item.id}`);
                       }}
                       onMouseEnter={() => setSelectedIdx(i)}
                       className={cn(
@@ -218,10 +171,7 @@ export default function Navbar() {
                           : "hover:bg-border-subtle",
                       )}
                     >
-                      {/* Icon */}
                       <Code2 size={12} className="text-[#555555] shrink-0" />
-
-                      {/* Title */}
                       <span
                         className={cn(
                           "flex-1 text-[12px] font-mono truncate",
@@ -232,8 +182,6 @@ export default function Navbar() {
                       >
                         {item.title}
                       </span>
-
-                      {/* Tags + language pill */}
                       <div className="flex items-center gap-1.5 shrink-0">
                         {item.tags.map((tag) => (
                           <span
@@ -259,9 +207,7 @@ export default function Navbar() {
         )}
       </div>
 
-      {/* ── Right side actions ──────────────────── */}
       <div className="flex items-center gap-1 ml-auto">
-        {/* Icon buttons */}
         {[
           { icon: Bell, title: "Notifications" },
           { icon: Settings, title: "Settings" },
@@ -281,10 +227,8 @@ export default function Navbar() {
           </button>
         ))}
 
-        {/* Divider */}
         <div className="w-px h-4.5 bg-border-base mx-1.5" />
 
-        {/* New snippet button */}
         <button
           onClick={() => router.push("/newsnippet")}
           className={cn(

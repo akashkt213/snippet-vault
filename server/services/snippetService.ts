@@ -5,7 +5,7 @@ import {
   deleteSnippet,
   findSnippetForUser,
   listSnippets,
-  searchSnippetsBasic,
+  searchSnippets,
   updateSnippet,
   updateSnippetFavorite,
 } from "@/server/repos/snippetRepo";
@@ -26,7 +26,7 @@ export async function listSnippetsService(userId: string, collectionId?: string)
 }
 
 export async function searchSnippetsService(userId: string, query: string, limit = 10) {
-  return searchSnippetsBasic(userId, query, limit);
+  return searchSnippets(userId, query, limit);
 }
 
 export async function updateSnippetFavoriteService(

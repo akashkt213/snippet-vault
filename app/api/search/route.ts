@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
 
   const searchParams = request.nextUrl.searchParams;
   const parsed = searchQuerySchema.safeParse({
-    q: searchParams.get("q"),
+    q: searchParams.get("q") ?? "",
     limit: searchParams.get("limit") ?? 10,
   });
 
