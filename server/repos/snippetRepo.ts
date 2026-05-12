@@ -2,7 +2,7 @@ import { prisma } from "@/lib/db/prisma";
 import { CreateSnippetInput } from "@/lib/validators/snippet";
 import { SearchSnippetResult } from "@/server/types";
 
-export async function createSnippet(input: CreateSnippetInput) {
+export async function createSnippet(input: CreateSnippetInput, userId: string) {
   return prisma.snippet.create({
     data: {
       title: input.title,
@@ -12,24 +12,28 @@ export async function createSnippet(input: CreateSnippetInput) {
       tags: input.tags,
       isFavorite: input.isFavorite,
       collectionId: input.collectionId,
+      userId,
     },
   });
 }
 
-export async function updateSnippetFavorite(snippetId: string, isFavorite: boolean) {
+export async function updateSnippetFavorite(
+  snippetId: string,
+  userId: string,
+  isFavorite: boolean,
+) {
   return prisma.snippet.update({
-    where: { id: snippetId },
+    where: { id: snippetId, userId },
     data: { isFavorite },
   });
 }
 
-export async function listSnippets(collectionId?: string) {
+export async function listSnippets(userId: string, collectionId?: string) {
   return prisma.snippet.findMany({
-    where: collectionId
-      ? {
-          collectionId,
-        }
-      : undefined,
+    where: {
+      userId,
+      ...(collectionId ? { collectionId } : {}),
+    },
     include: {
       collection: true,
     },
@@ -37,10 +41,14 @@ export async function listSnippets(collectionId?: string) {
   });
 }
 
-export async function searchSnippetsBasic(query: string, limit = 10): Promise<SearchSnippetResult[]> {
-  // Temporary fallback before pg_trgm SQL ranking is added.
+export async function searchSnippetsBasic(
+  userId: string,
+  query: string,
+  limit = 10,
+): Promise<SearchSnippetResult[]> {
   return prisma.snippet.findMany({
     where: {
+      userId,
       OR: [
         { title: { contains: query, mode: "insensitive" } },
         { description: { contains: query, mode: "insensitive" } },

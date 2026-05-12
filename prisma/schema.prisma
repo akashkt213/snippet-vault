@@ -6,13 +6,41 @@ datasource db {
   provider = "postgresql"
 }
 
+model User {
+  id           String       @id @default(cuid())
+  email        String       @unique
+  passwordHash String
+  name         String?
+  collections  Collection[]
+  snippets     Snippet[]
+  sessions     Session[]
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
 model Collection {
   id          String    @id @default(cuid())
   name        String
   description String?
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   snippets    Snippet[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+
+  @@index([userId])
 }
 
 model Snippet {
@@ -23,11 +51,14 @@ model Snippet {
   language     String
   tags         String[]   @default([])
   isFavorite   Boolean    @default(false)
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   collectionId String
   collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
+  @@index([userId])
   @@index([collectionId])
   @@index([language])
   @@index([isFavorite])

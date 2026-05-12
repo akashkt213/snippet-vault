@@ -1,23 +1,18 @@
-import Sidebar from "@/components/shared/Sidebar";
-import Navbar from "@/components/shared/Navbar";
+import { redirect } from "next/navigation";
 
-export default function DashboardLayout({
+import DashboardShell from "@/components/shared/DashboardShell";
+import { getAuthenticatedUser } from "@/lib/auth/session";
+
+export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return (
-    <div className="flex h-screen w-full overflow-hidden bg-[#0a0a0a]">
-      {/* Sidebar — fixed width, full height */}
-      <Sidebar />
+  const user = await getAuthenticatedUser();
 
-      {/* Right side — navbar + scrollable content */}
-      <div className="flex flex-1 flex-col overflow-hidden min-w-0">
-        <Navbar />
-        <main className="flex-1 overflow-y-auto">
-          {children}
-        </main>
-      </div>
-    </div>
-  );
+  if (!user) {
+    redirect("/login");
+  }
+
+  return <DashboardShell user={user}>{children}</DashboardShell>;
 }

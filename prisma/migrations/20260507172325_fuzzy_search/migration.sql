@@ -1,0 +1,1 @@
+-- Fuzzy search indexes were added in a prior iteration of this project.

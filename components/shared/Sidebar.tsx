@@ -1,15 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { cn } from "@/lib/utils"
+import { useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { cn } from "@/lib/utils";
 import {
-  Code2,
-  FolderOpen,
-  Star,
   BookOpen,
   ChevronRight,
+  Code2,
+  FolderOpen,
+  LogOut,
+  Star,
 } from "lucide-react";
+
+import { apiClient } from "@/lib/api/client";
+import type { AuthenticatedUser } from "@/lib/auth/session";
 
 const NAV_ITEMS = [
   { label: "All Snippets", href: "/dashboard",             icon: Code2      },
@@ -22,8 +27,23 @@ const BOTTOM_ITEMS = [
   { label: "New Snippet", href: "/newsnippet", icon: BookOpen },
 ];
 
-export default function Sidebar() {
+function getUserLabel(user: AuthenticatedUser) {
+  if (user.name?.trim()) {
+    return user.name.trim();
+  }
+
+  const [localPart] = user.email.split("@");
+  return localPart || user.email;
+}
+
+type SidebarProps = {
+  user: AuthenticatedUser;
+};
+
+export default function Sidebar({ user }: SidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
+  const [isSigningOut, setIsSigningOut] = useState(false);
 
   const isActive = (href: string) =>
     href === "/dashboard"
@@ -45,8 +65,8 @@ export default function Sidebar() {
           <span className="text-[11px] font-bold text-[#c4b5fd] tracking-[0.08em] uppercase font-mono">
             SnippetVault
           </span>
-          <span className="text-[9px] text-[#555555] tracking-[0.06em] font-mono">
-            PRO_USER_01
+          <span className="text-[9px] text-[#555555] tracking-[0.06em] font-mono truncate">
+            {getUserLabel(user)}
           </span>
         </div>
       </div>
@@ -117,6 +137,32 @@ export default function Sidebar() {
             </Link>
           );
         })}
+
+        <button
+          type="button"
+          onClick={async () => {
+            setIsSigningOut(true);
+            try {
+              await apiClient.post("/api/auth/signout", undefined, { retries: 0 });
+              router.push("/login");
+              router.refresh();
+            } finally {
+              setIsSigningOut(false);
+            }
+          }}
+          disabled={isSigningOut}
+          className={cn(
+            "flex items-center gap-2.5 px-2.5 py-1.75 rounded-md",
+            "text-[#666666] transition-colors duration-120 ease-in-out",
+            "hover:bg-[#161616] hover:text-[#aaaaaa]",
+            "disabled:opacity-50 disabled:pointer-events-none",
+          )}
+        >
+          <LogOut size={15} className="shrink-0 text-inherit" />
+          <span className="text-[11px] font-medium tracking-[0.04em] uppercase font-mono">
+            {isSigningOut ? "Signing out..." : "Sign out"}
+          </span>
+        </button>
       </nav>
 
     </aside>

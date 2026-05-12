@@ -57,6 +57,7 @@ async function request<T>(url: string, options: ApiRequestOptions = {}): Promise
     try {
       const response = await fetch(url, {
         ...fetchOptions,
+        credentials: fetchOptions.credentials ?? "include",
         headers: {
           "Content-Type": "application/json",
           ...headers,
