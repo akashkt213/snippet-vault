@@ -1,66 +1,89 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useForm } from "@tanstack/react-form";
 import { Code2 } from "lucide-react";
 
-import { ApiError, apiClient } from "@/lib/api/client";
-import { AuthUserResponse } from "@/lib/types/auth";
-import { signUpSchema } from "@/lib/validators/auth";
+import { ApiError } from "@/lib/api/client";
+import { getAuthErrorMessage, useAuthApi } from "@/lib/hooks/useAuthApi";
+import { getFormFieldErrors, signUpFormSchema, signUpSchema } from "@/lib/validators/auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 
-function getErrorMessage(error: unknown) {
-  if (error instanceof ApiError) {
-    const body = error.body as { error?: string } | null;
-    if (body?.error) {
-      return body.error;
-    }
+function formatFieldError(error: unknown) {
+  if (typeof error === "string") {
+    return error;
   }
 
-  return "Something went wrong. Please try again.";
+  if (error && typeof error === "object" && "message" in error) {
+    return String(error.message);
+  }
+
+  return undefined;
+}
+
+function FieldError({ message }: { message?: string }) {
+  if (!message) {
+    return null;
+  }
+
+  return <p className="text-sm text-red-400">{message}</p>;
 }
 
 export default function SignupPage() {
   const router = useRouter();
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { signUpMutation } = useAuthApi();
+  const { mutateAsync: signUp, isPending } = signUpMutation;
 
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setError(null);
+  const form = useForm({
+    defaultValues: {
+      name: "",
+      email: "",
+      password: "",
+    },
+    validators: {
+      onSubmit: signUpFormSchema,
+      onSubmitAsync: async ({ value }) => {
+        const parsed = signUpFormSchema.safeParse(value);
 
-    const parsed = signUpSchema.safeParse({
-      name: name.trim() || undefined,
-      email,
-      password,
-    });
+        if (!parsed.success) {
+          return {
+            fields: getFormFieldErrors(parsed.error),
+          };
+        }
 
-    if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? "Check the form and try again.");
-      return;
-    }
+        const payload = signUpSchema.parse({
+          name: parsed.data.name.trim() || undefined,
+          email: parsed.data.email,
+          password: parsed.data.password,
+        });
 
-    setIsSubmitting(true);
+        try {
+          await signUp(payload);
+        } catch (error) {
+          if (error instanceof ApiError && error.status === 409) {
+            return {
+              fields: {
+                email: getAuthErrorMessage(error),
+              },
+            };
+          }
 
-    try {
-      await apiClient.post<AuthUserResponse>("/api/auth/signup", parsed.data, {
-        timeoutMs: 12_000,
-        retries: 0,
-      });
+          return {
+            fields: {
+              password: getAuthErrorMessage(error),
+            },
+          };
+        }
+      },
+    },
+    onSubmit: async () => {
       router.push("/dashboard");
       router.refresh();
-    } catch (submitError) {
-      setError(getErrorMessage(submitError));
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+    },
+  });
 
   return (
     <Card className="w-full max-w-md border-border-base bg-surface-shell text-ink-primary shadow-none ring-0">
@@ -82,60 +105,112 @@ export default function SignupPage() {
       </CardHeader>
 
       <CardContent className="pt-6">
-        <form className="space-y-4" onSubmit={handleSubmit}>
-          <div className="space-y-2">
-            <label className="text-xs font-medium tracking-[0.04em] text-ink-secondary uppercase font-mono">
-              Name
-            </label>
-            <Input
-              type="text"
-              autoComplete="name"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              placeholder="Optional display name"
-              className="border-border-base bg-surface-default text-ink-primary"
-              disabled={isSubmitting}
-            />
-          </div>
+        <form
+          className="space-y-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void form.handleSubmit();
+          }}
+        >
+          <form.Field
+            name="name"
+            validators={{
+              onBlur: signUpFormSchema.shape.name,
+            }}
+          >
+            {(field) => (
+              <div className="space-y-2">
+                <label
+                  htmlFor={field.name}
+                  className="text-xs font-medium tracking-[0.04em] text-ink-secondary uppercase font-mono"
+                >
+                  Name
+                </label>
+                <Input
+                  id={field.name}
+                  name={field.name}
+                  type="text"
+                  autoComplete="name"
+                  value={field.state.value}
+                  onChange={(event) => field.handleChange(event.target.value)}
+                  onBlur={field.handleBlur}
+                  placeholder="Optional display name"
+                  className="border-border-base bg-surface-default text-ink-primary"
+                  disabled={isPending}
+                />
+                <FieldError message={formatFieldError(field.state.meta.errors[0])} />
+              </div>
+            )}
+          </form.Field>
 
-          <div className="space-y-2">
-            <label className="text-xs font-medium tracking-[0.04em] text-ink-secondary uppercase font-mono">
-              Email
-            </label>
-            <Input
-              type="email"
-              autoComplete="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              placeholder="you@example.com"
-              className="border-border-base bg-surface-default text-ink-primary"
-              disabled={isSubmitting}
-            />
-          </div>
+          <form.Field
+            name="email"
+            validators={{
+              onBlur: signUpFormSchema.shape.email,
+            }}
+          >
+            {(field) => (
+              <div className="space-y-2">
+                <label
+                  htmlFor={field.name}
+                  className="text-xs font-medium tracking-[0.04em] text-ink-secondary uppercase font-mono"
+                >
+                  Email
+                </label>
+                <Input
+                  id={field.name}
+                  name={field.name}
+                  type="email"
+                  autoComplete="email"
+                  value={field.state.value}
+                  onChange={(event) => field.handleChange(event.target.value)}
+                  onBlur={field.handleBlur}
+                  placeholder="you@example.com"
+                  className="border-border-base bg-surface-default text-ink-primary"
+                  disabled={isPending}
+                />
+                <FieldError message={formatFieldError(field.state.meta.errors[0])} />
+              </div>
+            )}
+          </form.Field>
 
-          <div className="space-y-2">
-            <label className="text-xs font-medium tracking-[0.04em] text-ink-secondary uppercase font-mono">
-              Password
-            </label>
-            <Input
-              type="password"
-              autoComplete="new-password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              placeholder="At least 8 characters"
-              className="border-border-base bg-surface-default text-ink-primary"
-              disabled={isSubmitting}
-            />
-          </div>
-
-          {error ? <p className="text-sm text-red-400">{error}</p> : null}
+          <form.Field
+            name="password"
+            validators={{
+              onBlur: signUpFormSchema.shape.password,
+            }}
+          >
+            {(field) => (
+              <div className="space-y-2">
+                <label
+                  htmlFor={field.name}
+                  className="text-xs font-medium tracking-[0.04em] text-ink-secondary uppercase font-mono"
+                >
+                  Password
+                </label>
+                <Input
+                  id={field.name}
+                  name={field.name}
+                  type="password"
+                  autoComplete="new-password"
+                  value={field.state.value}
+                  onChange={(event) => field.handleChange(event.target.value)}
+                  onBlur={field.handleBlur}
+                  placeholder="At least 8 characters"
+                  className="border-border-base bg-surface-default text-ink-primary"
+                  disabled={isPending}
+                />
+                <FieldError message={formatFieldError(field.state.meta.errors[0])} />
+              </div>
+            )}
+          </form.Field>
 
           <Button
             type="submit"
             className="w-full bg-purple-950 text-purple-300 hover:bg-[#2a1a4a]"
-            disabled={isSubmitting}
+            disabled={isPending}
           >
-            {isSubmitting ? "Creating account..." : "Create account"}
+            {isPending ? "Creating account..." : "Create account"}
           </Button>
         </form>
 

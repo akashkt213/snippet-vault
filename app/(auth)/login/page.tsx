@@ -1,60 +1,73 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useForm } from "@tanstack/react-form";
 import { Code2 } from "lucide-react";
 
-import { ApiError, apiClient } from "@/lib/api/client";
-import { AuthUserResponse } from "@/lib/types/auth";
-import { signInSchema } from "@/lib/validators/auth";
+import { getAuthErrorMessage, useAuthApi } from "@/lib/hooks/useAuthApi";
+import { getFormFieldErrors, signInSchema } from "@/lib/validators/auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 
-function getErrorMessage(error: unknown) {
-  if (error instanceof ApiError) {
-    const body = error.body as { error?: string } | null;
-    if (body?.error) {
-      return body.error;
-    }
+function formatFieldError(error: unknown) {
+  if (typeof error === "string") {
+    return error;
   }
 
-  return "Something went wrong. Please try again.";
+  if (error && typeof error === "object" && "message" in error) {
+    return String(error.message);
+  }
+
+  return undefined;
+}
+
+function FieldError({ message }: { message?: string }) {
+  if (!message) {
+    return null;
+  }
+
+  return <p className="text-sm text-red-400">{message}</p>;
 }
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { signInMutation } = useAuthApi();
+  const { mutateAsync: signIn, isPending } = signInMutation;
 
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setError(null);
+  const form = useForm({
+    defaultValues: {
+      email: "",
+      password: "",
+    },
+    validators: {
+      onSubmit: signInSchema,
+      onSubmitAsync: async ({ value }) => {
+        const parsed = signInSchema.safeParse(value);
 
-    const parsed = signInSchema.safeParse({ email, password });
-    if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? "Enter a valid email and password.");
-      return;
-    }
+        if (!parsed.success) {
+          return {
+            fields: getFormFieldErrors(parsed.error),
+          };
+        }
 
-    setIsSubmitting(true);
-
-    try {
-      await apiClient.post<AuthUserResponse>("/api/auth/signin", parsed.data, {
-        timeoutMs: 12_000,
-        retries: 0,
-      });
+        try {
+          await signIn(parsed.data);
+        } catch (error) {
+          return {
+            fields: {
+              password: getAuthErrorMessage(error),
+            },
+          };
+        }
+      },
+    },
+    onSubmit: async () => {
       router.push("/dashboard");
       router.refresh();
-    } catch (submitError) {
-      setError(getErrorMessage(submitError));
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+    },
+  });
 
   return (
     <Card className="w-full max-w-md border-border-base bg-surface-shell text-ink-primary shadow-none ring-0">
@@ -76,45 +89,81 @@ export default function LoginPage() {
       </CardHeader>
 
       <CardContent className="pt-6">
-        <form className="space-y-4" onSubmit={handleSubmit}>
-          <div className="space-y-2">
-            <label className="text-xs font-medium tracking-[0.04em] text-ink-secondary uppercase font-mono">
-              Email
-            </label>
-            <Input
-              type="email"
-              autoComplete="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              placeholder="you@example.com"
-              className="border-border-base bg-surface-default text-ink-primary"
-              disabled={isSubmitting}
-            />
-          </div>
+        <form
+          className="space-y-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void form.handleSubmit();
+          }}
+        >
+          <form.Field
+            name="email"
+            validators={{
+              onBlur: signInSchema.shape.email,
+            }}
+          >
+            {(field) => (
+              <div className="space-y-2">
+                <label
+                  htmlFor={field.name}
+                  className="text-xs font-medium tracking-[0.04em] text-ink-secondary uppercase font-mono"
+                >
+                  Email
+                </label>
+                <Input
+                  id={field.name}
+                  name={field.name}
+                  type="email"
+                  autoComplete="email"
+                  value={field.state.value}
+                  onChange={(event) => field.handleChange(event.target.value)}
+                  onBlur={field.handleBlur}
+                  placeholder="you@example.com"
+                  className="border-border-base bg-surface-default text-ink-primary"
+                  disabled={isPending}
+                />
+                <FieldError message={formatFieldError(field.state.meta.errors[0])} />
+              </div>
+            )}
+          </form.Field>
 
-          <div className="space-y-2">
-            <label className="text-xs font-medium tracking-[0.04em] text-ink-secondary uppercase font-mono">
-              Password
-            </label>
-            <Input
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              placeholder="Enter your password"
-              className="border-border-base bg-surface-default text-ink-primary"
-              disabled={isSubmitting}
-            />
-          </div>
-
-          {error ? <p className="text-sm text-red-400">{error}</p> : null}
+          <form.Field
+            name="password"
+            validators={{
+              onBlur: signInSchema.shape.password,
+            }}
+          >
+            {(field) => (
+              <div className="space-y-2">
+                <label
+                  htmlFor={field.name}
+                  className="text-xs font-medium tracking-[0.04em] text-ink-secondary uppercase font-mono"
+                >
+                  Password
+                </label>
+                <Input
+                  id={field.name}
+                  name={field.name}
+                  type="password"
+                  autoComplete="current-password"
+                  value={field.state.value}
+                  onChange={(event) => field.handleChange(event.target.value)}
+                  onBlur={field.handleBlur}
+                  placeholder="Enter your password"
+                  className="border-border-base bg-surface-default text-ink-primary"
+                  disabled={isPending}
+                />
+                <FieldError message={formatFieldError(field.state.meta.errors[0])} />
+              </div>
+            )}
+          </form.Field>
 
           <Button
             type="submit"
             className="w-full bg-purple-950 text-purple-300 hover:bg-[#2a1a4a]"
-            disabled={isSubmitting}
+            disabled={isPending}
           >
-            {isSubmitting ? "Signing in..." : "Sign in"}
+            {isPending ? "Signing in..." : "Sign in"}
           </Button>
         </form>
 
