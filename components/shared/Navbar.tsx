@@ -209,7 +209,7 @@ export default function Navbar() {
 
       <div className="flex items-center gap-1 ml-auto">
         {[
-          { icon: Bell, title: "Notifications" },
+          // { icon: Bell, title: "Notifications" },
           { icon: Settings, title: "Settings" },
           { icon: HelpCircle, title: "Help" },
         ].map(({ icon: Icon, title }) => (

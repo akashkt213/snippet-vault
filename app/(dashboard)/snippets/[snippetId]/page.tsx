@@ -22,6 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { apiClient } from "@/lib/api/client";
+import { useDeleteConfirmDialog } from "@/lib/hooks/useDeleteConfirmDialog";
 import { getLangExtension } from "@/lib/getLangExtension";
 
 type Collection = {
@@ -127,18 +128,23 @@ export default function SnippetDetailPage() {
         queryClient.invalidateQueries({ queryKey: ["collection-snippets"] }),
         queryClient.invalidateQueries({ queryKey: ["collections"] }),
       ]);
+      closeDeleteDialog();
       router.push("/dashboard");
     },
   });
 
+  const { requestDelete, closeDeleteDialog, dialog } = useDeleteConfirmDialog(
+    deleteMutation.isPending,
+  );
+
   const handleDelete = () => {
     if (!snippet) return;
-    const confirmed = window.confirm(
-      `Delete "${snippet.title}"? This action cannot be undone.`,
-    );
-    if (confirmed) {
-      deleteMutation.mutate();
-    }
+
+    requestDelete({
+      title: "Delete snippet?",
+      description: `"${snippet.title}" will be permanently removed. This action cannot be undone.`,
+      onConfirm: () => deleteMutation.mutate(),
+    });
   };
 
   if (isLoading) {
@@ -302,6 +308,7 @@ export default function SnippetDetailPage() {
           </div>
         </aside>
       </div>
+      {dialog}
     </div>
   );
 }

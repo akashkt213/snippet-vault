@@ -47,7 +47,7 @@ const snippetSchema = z.object({
   language: z.string().min(1, "Select a language"),
   collectionId: z.string().min(1, "Collection is required"),
   tags: z.array(z.string()).max(8, "Max 8 tags"),
-  visibility: z.enum(["private", "shared"]),
+  // visibility: z.enum(["private", "shared"]),
 });
 
 type Collection = {
@@ -311,7 +311,7 @@ export function SnippetFormPage({
       language: "JavaScript",
       collectionId: "",
       tags: [] as string[],
-      visibility: "private" as "private" | "shared",
+      // visibility: "private" as "private" | "shared",
     },
     // validatorAdapter: zodValidator(),
     onSubmit: async ({ value }) => {
@@ -708,32 +708,6 @@ export function SnippetFormPage({
               )}
             </form.Field>
 
-            {/* Visibility */}
-            <form.Field name="visibility">
-              {(field) => (
-                <div>
-                  <label className="block text-[10px] font-semibold font-mono text-ink-muted tracking-[0.08em] uppercase mb-1.5">
-                    Visibility
-                  </label>
-                  <div className="flex flex-col gap-2">
-                    <VisibilityOption
-                      selected={field.state.value === "private"}
-                      onSelect={() => field.handleChange("private")}
-                      icon={Lock}
-                      label="Private"
-                      description="Only you can view this snippet."
-                    />
-                    <VisibilityOption
-                      selected={field.state.value === "shared"}
-                      onSelect={() => field.handleChange("shared")}
-                      icon={Users}
-                      label="Workspace Shared"
-                      description="Visible to 'PRO_USER_01' team."
-                    />
-                  </div>
-                </div>
-              )}
-            </form.Field>
           </div>
 
           {/* Bottom actions */}

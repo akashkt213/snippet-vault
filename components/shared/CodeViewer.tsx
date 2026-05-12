@@ -1,15 +1,15 @@
 import CodeMirror from "@uiw/react-codemirror";
 import { EditorView } from "@codemirror/view";
-import type { Language } from "@codemirror/language";
 import { getLangExtension } from "@/lib/getLangExtension";
 
+type EditorLanguage = Parameters<typeof getLangExtension>[0];
 
 export function CodeViewer({
   code,
   language,
 }: {
   code: string;
-  language: Language;
+  language: EditorLanguage;
 }) {
   return (
     <CodeMirror

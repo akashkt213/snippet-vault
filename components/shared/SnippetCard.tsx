@@ -3,7 +3,10 @@
 import { useState } from "react";
 import { Copy, Check, Star, Clock, Pencil, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getLangExtension } from "@/lib/getLangExtension";
 import { CodeViewer } from "./CodeViewer";
+
+type EditorLanguage = Parameters<typeof getLangExtension>[0];
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 export type Language =
@@ -46,6 +49,20 @@ const LANG_CONFIG: Record<
   SQL: { bg: "#2a2010", text: "#fcd34d", label: "SQL" },
   BASH: { bg: "#1e2d1e", text: "#86efac", label: "BASH" },
   GO: { bg: "#1a2340", text: "#93c5fd", label: "GO" },
+};
+
+const LANGUAGE_TO_EDITOR: Record<Language, EditorLanguage> = {
+  REACT: "JavaScript",
+  JS: "JavaScript",
+  TS: "TypeScript",
+  JAVA: "Java",
+  PY: "Python",
+  CSS: "CSS",
+  YAML: "YAML",
+  RUST: "Rust",
+  SQL: "SQL",
+  BASH: "JavaScript",
+  GO: "JavaScript",
 };
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -154,7 +171,10 @@ export default function SnippetCard({
         {/* Scrollable code area */}
         <div className="overflow-x-auto overflow-y-hidden">
           <pre className="px-4 py-3 text-[11px] leading-[1.7] text-ink-secondary font-mono whitespace-pre min-h-40 max-h-55 overflow-y-auto">
-            <CodeViewer code={snippet.code} language={snippet.language} />
+            <CodeViewer
+              code={snippet.code}
+              language={LANGUAGE_TO_EDITOR[snippet.language]}
+            />
           </pre>
         </div>
 

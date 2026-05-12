@@ -13,6 +13,7 @@ import SnippetCard, {
 import { apiClient } from "@/lib/api/client";
 import { fetchSnippetSearch } from "@/lib/api/snippetSearch";
 import { useDebouncedValue } from "@/lib/hooks/useDebouncedValue";
+import { useDeleteConfirmDialog } from "@/lib/hooks/useDeleteConfirmDialog";
 import { cn } from "@/lib/utils";
 
 type SnippetApiItem = {
@@ -165,19 +166,23 @@ export default function DashboardPage() {
         queryClient.invalidateQueries({ queryKey: ["collection-snippets"] }),
         queryClient.invalidateQueries({ queryKey: ["collections"] }),
       ]);
+      closeDeleteDialog();
     },
   });
+
+  const { requestDelete, closeDeleteDialog, dialog } = useDeleteConfirmDialog(
+    deleteMutation.isPending,
+  );
 
   const handleDelete = (id: string) => {
     const snippet = snippets.find((s) => s.id === id);
     if (!snippet) return;
 
-    const confirmed = window.confirm(
-      `Delete "${snippet.title}"? This action cannot be undone.`,
-    );
-    if (confirmed) {
-      deleteMutation.mutate(id);
-    }
+    requestDelete({
+      title: "Delete snippet?",
+      description: `"${snippet.title}" will be permanently removed. This action cannot be undone.`,
+      onConfirm: () => deleteMutation.mutate(id),
+    });
   };
 
   const filtered = snippets.filter((s) => {
@@ -262,6 +267,7 @@ export default function DashboardPage() {
           ))}
         </div>
       )}
+      {dialog}
     </div>
   );
 }

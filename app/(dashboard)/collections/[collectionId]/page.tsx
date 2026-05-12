@@ -8,6 +8,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Code2 } from "lucide-react";
 
 import { apiClient } from "@/lib/api/client";
+import { useDeleteConfirmDialog } from "@/lib/hooks/useDeleteConfirmDialog";
 import { Button } from "@/components/ui/button";
 import SnippetCard, {
   Language,
@@ -21,8 +22,8 @@ type CollectionApiItem = {
   snippetCount: number;
 };
 
-type CollectionsResponse = {
-  data: CollectionApiItem[];
+type CollectionResponse = {
+  data: CollectionApiItem;
 };
 
 type SnippetApiItem = {
@@ -81,12 +82,24 @@ export default function CollectionDetailsPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
 
-  const { data: collectionsResponse } = useQuery({
-    queryKey: ["collections"],
-    queryFn: () => apiClient.get<CollectionsResponse>("/api/collections"),
+  const {
+    data: collectionResponse,
+    isLoading: isCollectionLoading,
+    isError: isCollectionError,
+  } = useQuery({
+    queryKey: ["collection", collectionId],
+    queryFn: () =>
+      apiClient.get<CollectionResponse>(
+        `/api/collections/${encodeURIComponent(collectionId)}`,
+      ),
+    enabled: Boolean(collectionId),
   });
 
-  const { data: snippetsResponse, isLoading, isError } = useQuery({
+  const {
+    data: snippetsResponse,
+    isLoading: isSnippetsLoading,
+    isError: isSnippetsError,
+  } = useQuery({
     queryKey: ["collection-snippets", collectionId],
     queryFn: () =>
       apiClient.get<SnippetsResponse>(
@@ -95,7 +108,7 @@ export default function CollectionDetailsPage() {
     enabled: Boolean(collectionId),
   });
 
-  const collection = collectionsResponse?.data.find((c) => c.id === collectionId);
+  const collection = collectionResponse?.data;
   const snippets = useMemo<Snippet[]>(
     () =>
       (snippetsResponse?.data ?? []).map((item) => ({
@@ -143,7 +156,7 @@ export default function CollectionDetailsPage() {
     favoriteMutation.mutate({ id, isFavorite: !current });
   };
 
-  const deleteMutation = useMutation({
+  const snippetDeleteMutation = useMutation({
     mutationFn: (id: string) => apiClient.delete(`/api/snippets/${id}`),
     onSuccess: async () => {
       await Promise.all([
@@ -152,20 +165,25 @@ export default function CollectionDetailsPage() {
         }),
         queryClient.invalidateQueries({ queryKey: ["snippets"] }),
         queryClient.invalidateQueries({ queryKey: ["collections"] }),
+        queryClient.invalidateQueries({ queryKey: ["collection", collectionId] }),
       ]);
+      closeDeleteDialog();
     },
   });
+
+  const { requestDelete, closeDeleteDialog, dialog } = useDeleteConfirmDialog(
+    snippetDeleteMutation.isPending,
+  );
 
   const handleDelete = (id: string) => {
     const snippet = snippets.find((s) => s.id === id);
     if (!snippet) return;
 
-    const confirmed = window.confirm(
-      `Delete "${snippet.title}"? This action cannot be undone.`,
-    );
-    if (confirmed) {
-      deleteMutation.mutate(id);
-    }
+    requestDelete({
+      title: "Delete snippet?",
+      description: `"${snippet.title}" will be permanently removed. This action cannot be undone.`,
+      onConfirm: () => snippetDeleteMutation.mutate(id),
+    });
   };
 
   return (
@@ -188,11 +206,19 @@ export default function CollectionDetailsPage() {
         </Button>
       </div>
 
-      {isLoading ? (
+      {isCollectionLoading ? (
+        <div className="py-10 text-center text-sm text-ink-muted">
+          Loading collection...
+        </div>
+      ) : isCollectionError || !collection ? (
+        <div className="py-10 text-center text-sm text-red-400">
+          Failed to load this collection.
+        </div>
+      ) : isSnippetsLoading ? (
         <div className="py-10 text-center text-sm text-ink-muted">
           Loading snippets...
         </div>
-      ) : isError ? (
+      ) : isSnippetsError ? (
         <div className="py-10 text-center text-sm text-red-400">
           Failed to load snippets for this collection.
         </div>
@@ -220,6 +246,8 @@ export default function CollectionDetailsPage() {
           ))}
         </div>
       )}
+
+      {dialog}
     </div>
   );
 }

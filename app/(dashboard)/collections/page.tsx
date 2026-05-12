@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useState, type MouseEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -24,8 +24,12 @@ import {
   Shield,
   Server,
   Plus,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
+import { useDeleteConfirmDialog } from "@/lib/hooks/useDeleteConfirmDialog";
+import { cn } from "@/lib/utils";
 
 type CollectionApiItem = {
   id: string;
@@ -38,6 +42,10 @@ type CollectionsResponse = {
   data: CollectionApiItem[];
 };
 
+type CollectionResponse = {
+  data: CollectionApiItem;
+};
+
 const ICONS = [Folder, Database, LayoutGrid, Box, Shield, Server] as const;
 
 function formatCount(count: number) {
@@ -48,9 +56,16 @@ export default function CollectionPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [isCreateSheetOpen, setCreateSheetOpen] = useState(false);
+  const [isEditSheetOpen, setEditSheetOpen] = useState(false);
+  const [editingCollectionId, setEditingCollectionId] = useState<string | null>(
+    null,
+  );
   const [newCollectionName, setNewCollectionName] = useState("");
   const [newCollectionDescription, setNewCollectionDescription] = useState("");
+  const [editName, setEditName] = useState("");
+  const [editDescription, setEditDescription] = useState("");
   const [createError, setCreateError] = useState<string | null>(null);
+  const [editError, setEditError] = useState<string | null>(null);
 
   const {
     data: collectionsResponse,
@@ -69,7 +84,10 @@ export default function CollectionPage() {
 
   const createCollectionMutation = useMutation({
     mutationFn: (payload: { name: string; description?: string }) =>
-      apiClient.post("/api/collections", payload, { timeoutMs: 12_000, retries: 1 }),
+      apiClient.post("/api/collections", payload, {
+        timeoutMs: 12_000,
+        retries: 1,
+      }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["collections"] });
       setCreateSheetOpen(false);
@@ -81,6 +99,55 @@ export default function CollectionPage() {
       setCreateError("Failed to create collection. Please try again.");
     },
   });
+
+  const updateCollectionMutation = useMutation({
+    mutationFn: ({
+      id,
+      payload,
+    }: {
+      id: string;
+      payload: { name: string; description?: string };
+    }) =>
+      apiClient.patch<CollectionResponse>(
+        `/api/collections/${encodeURIComponent(id)}`,
+        payload,
+        { timeoutMs: 12_000, retries: 1 },
+      ),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["collections"] });
+      if (editingCollectionId) {
+        await queryClient.invalidateQueries({
+          queryKey: ["collection", editingCollectionId],
+        });
+      }
+      setEditSheetOpen(false);
+      setEditingCollectionId(null);
+      setEditError(null);
+    },
+    onError: () => {
+      setEditError("Failed to update collection. Please try again.");
+    },
+  });
+
+  const deleteCollectionMutation = useMutation({
+    mutationFn: (id: string) =>
+      apiClient.delete(`/api/collections/${encodeURIComponent(id)}`, {
+        timeoutMs: 12_000,
+        retries: 1,
+      }),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["collections"] }),
+        queryClient.invalidateQueries({ queryKey: ["snippets"] }),
+        queryClient.invalidateQueries({ queryKey: ["collection-snippets"] }),
+      ]);
+      closeDeleteDialog();
+    },
+  });
+
+  const { requestDelete, closeDeleteDialog, dialog } = useDeleteConfirmDialog(
+    deleteCollectionMutation.isPending,
+  );
 
   const handleCreateCollection = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -97,17 +164,67 @@ export default function CollectionPage() {
     });
   };
 
+  const openEditSheet = (
+    item: CollectionApiItem,
+    event: MouseEvent<HTMLButtonElement>,
+  ) => {
+    event.stopPropagation();
+    setEditingCollectionId(item.id);
+    setEditName(item.name);
+    setEditDescription(item.description ?? "");
+    setEditError(null);
+    setEditSheetOpen(true);
+  };
+
+  const handleUpdateCollection = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!editingCollectionId) return;
+
+    const name = editName.trim();
+    if (!name) {
+      setEditError("Collection name is required.");
+      return;
+    }
+
+    setEditError(null);
+    updateCollectionMutation.mutate({
+      id: editingCollectionId,
+      payload: {
+        name,
+        description: editDescription.trim() || undefined,
+      },
+    });
+  };
+
+  const handleDeleteCollection = (
+    item: CollectionApiItem,
+    event: MouseEvent<HTMLButtonElement>,
+  ) => {
+    event.stopPropagation();
+
+    const snippetLabel =
+      item.snippetCount === 1 ? "1 snippet" : `${item.snippetCount} snippets`;
+
+    requestDelete({
+      title: "Delete collection?",
+      description: `"${item.name}" and ${snippetLabel} will be permanently removed. This action cannot be undone.`,
+      onConfirm: () => deleteCollectionMutation.mutate(item.id),
+    });
+  };
+
+  const actionButtonClassName = cn(
+    "flex items-center justify-center rounded-md border p-1.5",
+    "border-border-base bg-border-subtle text-ink-muted transition-all duration-150",
+    "hover:border-[#3d2f6e] hover:text-purple-300",
+  );
+
   return (
     <div className="flex-1 bg-surface-base p-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <p className="text-xs text-ink-muted">
-            WORKSPACE / SNIPPETS
-          </p>
-          <h1 className="text-lg font-semibold mt-1">
-            Snippet Library
-          </h1>
+          <p className="text-xs text-ink-muted">WORKSPACE / SNIPPETS</p>
+          <h1 className="text-lg font-semibold mt-1">Snippet Library</h1>
         </div>
 
         <div className="flex gap-2">
@@ -150,10 +267,9 @@ export default function CollectionPage() {
                 className="group cursor-pointer border border-border-base bg-surface-default hover:bg-surface-hover transition"
                 onClick={() => router.push(`/collections/${item.id}`)}
               >
-                <CardContent className="p-5 space-y-4">
-                  {/* Top */}
-                  <div className="flex items-center justify-between">
-                    <div className="p-2 rounded-md bg-purple-950 text-purple-400">
+                <CardContent className="flex min-h-45 flex-col p-5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="rounded-md bg-purple-950 p-2 text-purple-400">
                       <Icon size={18} />
                     </div>
                     <span className="text-[10px] text-ink-muted">
@@ -161,15 +277,37 @@ export default function CollectionPage() {
                     </span>
                   </div>
 
-                  {/* Content */}
-                  <div>
+                  <div className="mt-4 flex-1">
                     <h3 className="text-sm font-semibold text-ink-primary">
                       {item.name}
                     </h3>
-                    <p className="text-xs text-ink-secondary mt-1">
+                    <p className="mt-1 text-xs text-ink-secondary">
                       {item.description || "No description provided."}
                     </p>
                   </div>
+
+                  <div className="mt-4 flex items-center justify-end gap-1.5">
+                      <button
+                        type="button"
+                        onClick={(event) => openEditSheet(item, event)}
+                        className={actionButtonClassName}
+                        title="Edit collection"
+                      >
+                        <Pencil size={11} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(event) => handleDeleteCollection(item, event)}
+                        disabled={deleteCollectionMutation.isPending}
+                        className={cn(
+                          actionButtonClassName,
+                          "hover:border-[#5c2b2b] hover:text-red-400",
+                        )}
+                        title="Delete collection"
+                      >
+                        <Trash2 size={11} />
+                      </button>
+                    </div>
                 </CardContent>
               </Card>
             );
@@ -200,9 +338,14 @@ export default function CollectionPage() {
       </div>
 
       <Sheet open={isCreateSheetOpen} onOpenChange={setCreateSheetOpen}>
-        <SheetContent side="right" className="bg-surface-shell border-border-base">
+        <SheetContent
+          side="right"
+          className="bg-surface-shell border-border-base"
+        >
           <SheetHeader>
-            <SheetTitle className="text-ink-primary">Create New Collection</SheetTitle>
+            <SheetTitle className="text-ink-primary">
+              Create New Collection
+            </SheetTitle>
             <SheetDescription>
               Add a new collection to organize your snippets.
             </SheetDescription>
@@ -221,7 +364,9 @@ export default function CollectionPage() {
               <label className="text-xs text-ink-muted">Description</label>
               <Textarea
                 value={newCollectionDescription}
-                onChange={(event) => setNewCollectionDescription(event.target.value)}
+                onChange={(event) =>
+                  setNewCollectionDescription(event.target.value)
+                }
                 placeholder="Short description for this collection..."
                 className="bg-surface-default border-border-base"
                 rows={4}
@@ -238,8 +383,79 @@ export default function CollectionPage() {
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={createCollectionMutation.isPending}>
-                {createCollectionMutation.isPending ? "Creating..." : "Create Collection"}
+              <Button
+                type="submit"
+                disabled={createCollectionMutation.isPending}
+              >
+                {createCollectionMutation.isPending
+                  ? "Creating..."
+                  : "Create Collection"}
+              </Button>
+            </SheetFooter>
+          </form>
+        </SheetContent>
+      </Sheet>
+
+      <Sheet
+        open={isEditSheetOpen}
+        onOpenChange={(open) => {
+          setEditSheetOpen(open);
+          if (!open) {
+            setEditingCollectionId(null);
+            setEditError(null);
+          }
+        }}
+      >
+        <SheetContent
+          side="right"
+          className="bg-surface-shell border-border-base"
+        >
+          <SheetHeader>
+            <SheetTitle className="text-ink-primary">
+              Edit Collection
+            </SheetTitle>
+            <SheetDescription>
+              Update the collection name or description.
+            </SheetDescription>
+          </SheetHeader>
+          <form className="mt-6 space-y-4" onSubmit={handleUpdateCollection}>
+            <div className="space-y-1.5">
+              <label className="text-xs text-ink-muted">Name</label>
+              <Input
+                value={editName}
+                onChange={(event) => setEditName(event.target.value)}
+                placeholder="e.g. React Helpers"
+                className="bg-surface-default border-border-base"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs text-ink-muted">Description</label>
+              <Textarea
+                value={editDescription}
+                onChange={(event) => setEditDescription(event.target.value)}
+                placeholder="Short description for this collection..."
+                className="bg-surface-default border-border-base"
+                rows={4}
+              />
+            </div>
+            {editError ? (
+              <p className="text-sm text-red-400">{editError}</p>
+            ) : null}
+            <SheetFooter>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setEditSheetOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={updateCollectionMutation.isPending}
+              >
+                {updateCollectionMutation.isPending
+                  ? "Saving..."
+                  : "Save Changes"}
               </Button>
             </SheetFooter>
           </form>
@@ -253,6 +469,7 @@ export default function CollectionPage() {
       >
         <Plus />
       </Button>
+      {dialog}
     </div>
   );
 }

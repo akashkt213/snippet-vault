@@ -8,6 +8,7 @@ import SnippetCard, {
   Snippet,
 } from "@/components/shared/SnippetCard";
 import { apiClient } from "@/lib/api/client";
+import { useDeleteConfirmDialog } from "@/lib/hooks/useDeleteConfirmDialog";
 
 type SnippetApiItem = {
   id: string;
@@ -120,19 +121,23 @@ export default function FavoritesPage() {
         queryClient.invalidateQueries({ queryKey: ["collection-snippets"] }),
         queryClient.invalidateQueries({ queryKey: ["collections"] }),
       ]);
+      closeDeleteDialog();
     },
   });
+
+  const { requestDelete, closeDeleteDialog, dialog } = useDeleteConfirmDialog(
+    deleteMutation.isPending,
+  );
 
   const handleDelete = (id: string) => {
     const snippet = favorites.find((s) => s.id === id);
     if (!snippet) return;
 
-    const confirmed = window.confirm(
-      `Delete "${snippet.title}"? This action cannot be undone.`,
-    );
-    if (confirmed) {
-      deleteMutation.mutate(id);
-    }
+    requestDelete({
+      title: "Delete snippet?",
+      description: `"${snippet.title}" will be permanently removed. This action cannot be undone.`,
+      onConfirm: () => deleteMutation.mutate(id),
+    });
   };
 
   return (
@@ -171,6 +176,7 @@ export default function FavoritesPage() {
           ))}
         </div>
       )}
+      {dialog}
     </div>
   );
 }
