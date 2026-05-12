@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import SnippetCard, {
   Language,
@@ -59,6 +60,7 @@ function formatAddedAt(dateStr: string): string {
 }
 
 export default function FavoritesPage() {
+  const router = useRouter();
   const queryClient = useQueryClient();
   const { data: apiSnippets = [], isLoading, isError } = useQuery({
     queryKey: ["snippets"],
@@ -110,6 +112,29 @@ export default function FavoritesPage() {
     favoriteMutation.mutate({ id, isFavorite: false });
   };
 
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => apiClient.delete(`/api/snippets/${id}`),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["snippets"] }),
+        queryClient.invalidateQueries({ queryKey: ["collection-snippets"] }),
+        queryClient.invalidateQueries({ queryKey: ["collections"] }),
+      ]);
+    },
+  });
+
+  const handleDelete = (id: string) => {
+    const snippet = favorites.find((s) => s.id === id);
+    if (!snippet) return;
+
+    const confirmed = window.confirm(
+      `Delete "${snippet.title}"? This action cannot be undone.`,
+    );
+    if (confirmed) {
+      deleteMutation.mutate(id);
+    }
+  };
+
   return (
     <div className="flex-1 bg-surface-base p-6">
       {/* Header */}
@@ -139,7 +164,9 @@ export default function FavoritesPage() {
               key={snippet.id}
               snippet={snippet}
               onStar={handleStar}
-              onClick={(id) => console.log("open snippet", id)}
+              onClick={(id) => router.push(`/snippets/${id}`)}
+              onEdit={(id) => router.push(`/snippets/${id}/edit`)}
+              onDelete={handleDelete}
             />
           ))}
         </div>

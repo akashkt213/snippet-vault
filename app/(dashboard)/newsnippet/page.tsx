@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "@tanstack/react-form";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import hljs from "highlight.js";
 
@@ -63,6 +63,24 @@ type CreateSnippetResponse = {
   data: {
     id: string;
   };
+};
+
+type SnippetDetailResponse = {
+  data: {
+    id: string;
+    title: string;
+    description: string | null;
+    code: string;
+    language: string;
+    collectionId: string;
+    tags: string[];
+  };
+};
+
+type SnippetFormPageProps = {
+  mode?: "create" | "edit";
+  snippetId?: string;
+  initialTitle?: string | null;
 };
 
 // ── Field error ───────────────────────────────────────────────────────────────
@@ -255,13 +273,18 @@ function EditorToolbar({
 }
 
 // ── Main page ─────────────────────────────────────────────────────────────────
-export default function AddSnippetPage() {
+export function SnippetFormPage({
+  mode = "create",
+  snippetId,
+  initialTitle = null,
+}: SnippetFormPageProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
+  const isEditMode = mode === "edit";
   const [isAutoDetected, setIsAutoDetected] = useState(false);
   const [detectedLang, setDetectedLang] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const title = useSearchParams().get("title");
 
   const { data: collectionsResponse } = useQuery({
     queryKey: ["collections"],
@@ -269,9 +292,20 @@ export default function AddSnippetPage() {
   });
   const collections = collectionsResponse?.data ?? [];
 
+  const { data: existingSnippet, isLoading: isSnippetLoading } = useQuery({
+    queryKey: ["snippet", snippetId],
+    queryFn: async () => {
+      const response = await apiClient.get<SnippetDetailResponse>(
+        `/api/snippets/${encodeURIComponent(snippetId ?? "")}`,
+      );
+      return response.data;
+    },
+    enabled: isEditMode && Boolean(snippetId),
+  });
+
   const form = useForm({
     defaultValues: {
-      title: "",
+      title: initialTitle ?? "",
       description: "",
       code: "",
       language: "JavaScript",
@@ -289,15 +323,35 @@ export default function AddSnippetPage() {
       }
 
       try {
+        const payload = {
+          title: parsed.data.title,
+          description: parsed.data.description?.trim() || undefined,
+          code: parsed.data.code,
+          language: parsed.data.language,
+          collectionId: parsed.data.collectionId,
+          tags: parsed.data.tags,
+        };
+
+        if (isEditMode && snippetId) {
+          await apiClient.patch(
+            `/api/snippets/${encodeURIComponent(snippetId)}`,
+            payload,
+            { timeoutMs: 12_000, retries: 1 },
+          );
+          await Promise.all([
+            queryClient.invalidateQueries({ queryKey: ["snippet", snippetId] }),
+            queryClient.invalidateQueries({ queryKey: ["snippets"] }),
+            queryClient.invalidateQueries({ queryKey: ["collection-snippets"] }),
+            queryClient.invalidateQueries({ queryKey: ["collections"] }),
+          ]);
+          router.push(`/snippets/${snippetId}`);
+          return;
+        }
+
         await apiClient.post<CreateSnippetResponse>(
           "/api/snippets",
           {
-            title: parsed.data.title,
-            description: parsed.data.description?.trim() || undefined,
-            code: parsed.data.code,
-            language: parsed.data.language,
-            collectionId: parsed.data.collectionId,
-            tags: parsed.data.tags,
+            ...payload,
             isFavorite: false,
           },
           { timeoutMs: 12_000, retries: 1 },
@@ -308,10 +362,25 @@ export default function AddSnippetPage() {
           setSubmitError("Invalid snippet data. Please review title, code, and collection.");
           return;
         }
-        setSubmitError("Failed to save snippet. Please try again.");
+        setSubmitError(
+          isEditMode
+            ? "Failed to update snippet. Please try again."
+            : "Failed to save snippet. Please try again.",
+        );
       }
     },
   });
+
+  useEffect(() => {
+    if (!existingSnippet) return;
+
+    form.setFieldValue("title", existingSnippet.title);
+    form.setFieldValue("description", existingSnippet.description ?? "");
+    form.setFieldValue("code", existingSnippet.code);
+    form.setFieldValue("language", existingSnippet.language);
+    form.setFieldValue("collectionId", existingSnippet.collectionId);
+    form.setFieldValue("tags", existingSnippet.tags ?? []);
+  }, [existingSnippet]);
 
   // Called when paste detected a language
   const handleLanguageDetected = useCallback(
@@ -352,9 +421,15 @@ export default function AddSnippetPage() {
 
   return (
     <div className="flex flex-col h-full bg-surface-base">
+      {isEditMode && isSnippetLoading ? (
+        <div className="flex flex-1 items-center justify-center">
+          <Loader2 size={18} className="animate-spin text-purple-400" />
+        </div>
+      ) : (
+        <>
       <div className="flex items-center justify-between px-5 py-3 bg-surface-shell border-b border-border-subtle shrink-0">
         <h1 className="text-[13px] font-semibold text-ink-primary font-mono tracking-wide">
-          Add New Snippet
+          {isEditMode ? "Edit Snippet" : "Add New Snippet"}
         </h1>
         <div className="flex items-center gap-2">
           <button
@@ -381,7 +456,11 @@ export default function AddSnippetPage() {
             ) : (
               <Save size={12} />
             )}
-            {form.state.isSubmitting ? "Saving..." : "Save Snippet"}
+            {form.state.isSubmitting
+              ? "Saving..."
+              : isEditMode
+                ? "Save Changes"
+                : "Save Snippet"}
           </button>
         </div>
       </div>
@@ -423,7 +502,9 @@ export default function AddSnippetPage() {
                   height="100%"
                   theme={midnightTheme}
                   extensions={[
-                    getLangExtension(language) ?? javascript(),
+                    getLangExtension(
+                      language as Parameters<typeof getLangExtension>[0],
+                    ) ?? javascript(),
                     EditorView.lineWrapping,
                   ]}
                   onChange={(val) => {
@@ -496,7 +577,6 @@ export default function AddSnippetPage() {
             {/* Title */}
             <form.Field
               name="title"
-              defaultValue={title ?? ""}
               validators={{
                 onSubmit: z
                   .string()
@@ -683,11 +763,23 @@ export default function AddSnippetPage() {
               ) : (
                 <Save size={11} />
               )}
-              {form.state.isSubmitting ? "Saving..." : "Save Snippet"}
+              {form.state.isSubmitting
+                ? "Saving..."
+                : isEditMode
+                  ? "Save Changes"
+                  : "Save Snippet"}
             </button>
           </div>
         </div>
       </div>
+        </>
+      )}
     </div>
   );
+}
+
+export default function AddSnippetPage() {
+  const title = useSearchParams().get("title");
+
+  return <SnippetFormPage mode="create" initialTitle={title} />;
 }

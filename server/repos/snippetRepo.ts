@@ -28,6 +28,38 @@ export async function updateSnippetFavorite(
   });
 }
 
+export async function findSnippetForUser(snippetId: string, userId: string) {
+  return prisma.snippet.findFirst({
+    where: { id: snippetId, userId },
+    include: { collection: true },
+  });
+}
+
+export async function updateSnippet(
+  snippetId: string,
+  userId: string,
+  input: {
+    title?: string;
+    description?: string;
+    code?: string;
+    language?: string;
+    tags?: string[];
+    collectionId?: string;
+  },
+) {
+  return prisma.snippet.update({
+    where: { id: snippetId, userId },
+    data: input,
+    include: { collection: true },
+  });
+}
+
+export async function deleteSnippet(snippetId: string, userId: string) {
+  return prisma.snippet.delete({
+    where: { id: snippetId, userId },
+  });
+}
+
 export async function listSnippets(userId: string, collectionId?: string) {
   return prisma.snippet.findMany({
     where: {

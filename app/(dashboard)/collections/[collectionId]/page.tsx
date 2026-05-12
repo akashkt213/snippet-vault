@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Code2 } from "lucide-react";
@@ -78,6 +78,7 @@ function formatAddedAt(dateStr: string): string {
 export default function CollectionDetailsPage() {
   const params = useParams<{ collectionId: string }>();
   const collectionId = params.collectionId;
+  const router = useRouter();
   const queryClient = useQueryClient();
 
   const { data: collectionsResponse } = useQuery({
@@ -142,6 +143,31 @@ export default function CollectionDetailsPage() {
     favoriteMutation.mutate({ id, isFavorite: !current });
   };
 
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => apiClient.delete(`/api/snippets/${id}`),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: ["collection-snippets", collectionId],
+        }),
+        queryClient.invalidateQueries({ queryKey: ["snippets"] }),
+        queryClient.invalidateQueries({ queryKey: ["collections"] }),
+      ]);
+    },
+  });
+
+  const handleDelete = (id: string) => {
+    const snippet = snippets.find((s) => s.id === id);
+    if (!snippet) return;
+
+    const confirmed = window.confirm(
+      `Delete "${snippet.title}"? This action cannot be undone.`,
+    );
+    if (confirmed) {
+      deleteMutation.mutate(id);
+    }
+  };
+
   return (
     <div className="flex-1 bg-surface-base p-6">
       <div className="mb-6 flex items-center justify-between gap-3">
@@ -187,7 +213,9 @@ export default function CollectionDetailsPage() {
               key={snippet.id}
               snippet={snippet}
               onStar={handleStar}
-              onClick={(id) => console.log("open snippet", id)}
+              onClick={(id) => router.push(`/snippets/${id}`)}
+              onEdit={(id) => router.push(`/snippets/${id}/edit`)}
+              onDelete={handleDelete}
             />
           ))}
         </div>

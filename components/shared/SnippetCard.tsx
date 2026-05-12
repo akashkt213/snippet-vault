@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Copy, Check, Star, Clock } from "lucide-react";
+import { Copy, Check, Star, Clock, Pencil, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CodeViewer } from "./CodeViewer";
 
@@ -52,6 +52,8 @@ const LANG_CONFIG: Record<
 interface SnippetCardProps {
   snippet: Snippet;
   onStar?: (id: string) => void;
+  onEdit?: (id: string) => void;
+  onDelete?: (id: string) => void;
   onClick?: (id: string) => void;
   className?: string;
 }
@@ -60,6 +62,8 @@ interface SnippetCardProps {
 export default function SnippetCard({
   snippet,
   onStar,
+  onEdit,
+  onDelete,
   onClick,
   className,
 }: SnippetCardProps) {
@@ -79,6 +83,23 @@ export default function SnippetCard({
     e.stopPropagation();
     onStar?.(snippet.id);
   };
+
+  const handleEdit = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onEdit?.(snippet.id);
+  };
+
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onDelete?.(snippet.id);
+  };
+
+  const actionButtonClassName = cn(
+    "flex items-center justify-center p-1.5 rounded-md",
+    "border transition-all duration-150",
+    "bg-border-subtle border-border-base text-ink-muted",
+    "hover:border-[#3d2f6e] hover:text-purple-300",
+  );
 
   return (
     <div
@@ -160,21 +181,35 @@ export default function SnippetCard({
           ))}
         </div>
 
-        {/* Copy button */}
-        <button
-          onClick={handleCopy}
-          className={cn(
-            "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-mono",
-            "border transition-all duration-150",
-            copied
-              ? "bg-[#1e2d1e] border-[#86efac] text-[#86efac]"
-              : "bg-border-subtle border-border-base text-ink-muted hover:border-[#3d2f6e] hover:text-purple-300",
-          )}
-          title="Copy code"
-        >
-          {copied ? <Check size={11} /> : <Copy size={11} />}
-          {copied ? "Copied!" : "Copy"}
-        </button>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={handleCopy}
+            className={cn(
+              actionButtonClassName,
+              copied && "bg-[#1e2d1e] border-[#86efac] text-[#86efac]",
+            )}
+            title="Copy code"
+          >
+            {copied ? <Check size={11} /> : <Copy size={11} />}
+          </button>
+          <button
+            onClick={handleEdit}
+            className={actionButtonClassName}
+            title="Edit snippet"
+          >
+            <Pencil size={11} />
+          </button>
+          <button
+            onClick={handleDelete}
+            className={cn(
+              actionButtonClassName,
+              "hover:border-[#5c2b2b] hover:text-red-400",
+            )}
+            title="Delete snippet"
+          >
+            <Trash2 size={11} />
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -1,9 +1,12 @@
-import { CreateSnippetInput } from "@/lib/validators/snippet";
+import { CreateSnippetInput, UpdateSnippetInput } from "@/lib/validators/snippet";
 import { getCollectionForUserService } from "@/server/services/collectionService";
 import {
   createSnippet,
+  deleteSnippet,
+  findSnippetForUser,
   listSnippets,
   searchSnippetsBasic,
+  updateSnippet,
   updateSnippetFavorite,
 } from "@/server/repos/snippetRepo";
 
@@ -33,6 +36,46 @@ export async function updateSnippetFavoriteService(
 ) {
   try {
     const snippet = await updateSnippetFavorite(snippetId, userId, isFavorite);
+    return { snippet };
+  } catch {
+    return { error: "SNIPPET_NOT_FOUND" as const };
+  }
+}
+
+export async function getSnippetService(snippetId: string, userId: string) {
+  const snippet = await findSnippetForUser(snippetId, userId);
+
+  if (!snippet) {
+    return { error: "SNIPPET_NOT_FOUND" as const };
+  }
+
+  return { snippet };
+}
+
+export async function updateSnippetService(
+  snippetId: string,
+  userId: string,
+  input: UpdateSnippetInput,
+) {
+  if (input.collectionId) {
+    const collection = await getCollectionForUserService(input.collectionId, userId);
+
+    if (!collection) {
+      return { error: "COLLECTION_NOT_FOUND" as const };
+    }
+  }
+
+  try {
+    const snippet = await updateSnippet(snippetId, userId, input);
+    return { snippet };
+  } catch {
+    return { error: "SNIPPET_NOT_FOUND" as const };
+  }
+}
+
+export async function deleteSnippetService(snippetId: string, userId: string) {
+  try {
+    const snippet = await deleteSnippet(snippetId, userId);
     return { snippet };
   } catch {
     return { error: "SNIPPET_NOT_FOUND" as const };

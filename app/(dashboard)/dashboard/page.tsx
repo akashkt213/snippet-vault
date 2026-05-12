@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Filter, Code2 } from "lucide-react";
@@ -82,6 +83,7 @@ const FILTERS: { label: string; value: string }[] = [
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function DashboardPage() {
+  const router = useRouter();
   const [activeFilter, setFilter] = useState("all");
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
@@ -132,6 +134,29 @@ export default function DashboardPage() {
   const handleStar = (id: string) => {
     const current = snippets.find((s) => s.id === id)?.starred ?? false;
     favoriteMutation.mutate({ id, isFavorite: !current });
+  };
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => apiClient.delete(`/api/snippets/${id}`),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["snippets"] }),
+        queryClient.invalidateQueries({ queryKey: ["collection-snippets"] }),
+        queryClient.invalidateQueries({ queryKey: ["collections"] }),
+      ]);
+    },
+  });
+
+  const handleDelete = (id: string) => {
+    const snippet = snippets.find((s) => s.id === id);
+    if (!snippet) return;
+
+    const confirmed = window.confirm(
+      `Delete "${snippet.title}"? This action cannot be undone.`,
+    );
+    if (confirmed) {
+      deleteMutation.mutate(id);
+    }
   };
 
   const filtered = snippets.filter((s) => {
@@ -220,7 +245,9 @@ export default function DashboardPage() {
               key={snippet.id}
               snippet={snippet}
               onStar={handleStar}
-              onClick={(id) => console.log("open snippet", id)}
+              onClick={(id) => router.push(`/snippets/${id}`)}
+              onEdit={(id) => router.push(`/snippets/${id}/edit`)}
+              onDelete={handleDelete}
             />
           ))}
         </div>
