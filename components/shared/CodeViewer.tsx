@@ -17,10 +17,7 @@ export function CodeViewer({
   code: string;
   language: EditorLanguage;
 }) {
-  const {
-    resolvedCodeMirrorTheme,
-    preferences,
-  } = useUserPreferences();
+  const { resolvedTheme, preferences } = useUserPreferences();
 
   const { editorFontSize, wordWrap, tabSize, showLineNumbers } = preferences;
 
@@ -41,15 +38,14 @@ export function CodeViewer({
     [language, tabSize, wordWrap],
   );
 
-  const surface =
-    resolvedCodeMirrorTheme === "dark" ? "#0f0f0f" : "#fafafa";
+  const surface = resolvedTheme === "dark" ? "#0f0f0f" : "#fafafa";
 
   return (
     <CodeMirror
-      key={`cv-${editorFontSize}-${resolvedCodeMirrorTheme}-${wordWrap}-${tabSize}-${showLineNumbers}`}
+      key={`cv-${editorFontSize}-${resolvedTheme}-${wordWrap}-${tabSize}-${showLineNumbers}`}
       value={code}
       editable={false}
-      theme={resolvedCodeMirrorTheme}
+      theme={resolvedTheme}
       extensions={extensions}
       basicSetup={{
         lineNumbers: showLineNumbers,

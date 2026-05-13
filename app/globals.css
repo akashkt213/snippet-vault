@@ -84,8 +84,6 @@ html {
 body {
   height: 100%;
   min-height: 100vh;
-  background-color: #0a0a0a;
-  color: #e5e5e5;
   font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -178,6 +176,7 @@ body {
 }
 
 .dark {
+  color-scheme: dark;
   --background:    oklch(0.145 0 0);
   --foreground:    oklch(0.985 0 0);
   --card:    oklch(0.205 0 0);
@@ -209,6 +208,39 @@ body {
   --sidebar-accent-foreground:    oklch(0.985 0 0);
   --sidebar-border:    oklch(1 0 0 / 10%);
   --sidebar-ring:    oklch(0.556 0 0);
+}
+
+/* Light app shell — used when <html class="light"> (see UserPreferencesProvider). */
+html.light {
+  color-scheme: light;
+  --color-surface-base: #f4f4f8;
+  --color-surface-shell: #ffffff;
+  --color-surface-default: #ececf2;
+  --color-surface-raised: #e2e2ea;
+  --color-surface-hover: #d8d8e2;
+
+  --color-purple-950: #f5f3ff;
+  --color-purple-800: #ddd6fe;
+  --color-purple-600: #7c3aed;
+  --color-purple-400: #6d28d9;
+  --color-purple-300: #5b21b6;
+
+  --color-ink-primary: #171717;
+  --color-ink-secondary: #404040;
+  --color-ink-muted: #737373;
+  --color-ink-disabled: #a3a3a3;
+
+  --color-border-subtle: #e8e8ef;
+  --color-border-base: #d4d4dc;
+  --color-border-hover: #c4c4ce;
+  --color-border-accent: #c4b5fd;
+}
+
+html.light ::-webkit-scrollbar-thumb {
+  background: #d4d4dc;
+}
+html.light ::-webkit-scrollbar-thumb:hover {
+  background: #a78bfa;
 }
 
 @layer base {

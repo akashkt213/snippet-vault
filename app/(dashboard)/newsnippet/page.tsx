@@ -236,7 +236,7 @@ function EditorToolbar({
   themeSaving?: boolean;
 }) {
   return (
-    <div className="flex items-center justify-between px-3 py-2 bg-[#111111] border-b border-border-subtle shrink-0">
+    <div className="flex items-center justify-between px-3 py-2 bg-surface-shell border-b border-border-subtle shrink-0">
       <div className="flex items-center gap-1">
         <button
           type="button"
@@ -530,8 +530,8 @@ export function SnippetFormPage({
                   setIsAutoDetected(false);
                 }}
                 isAutoDetected={isAutoDetected}
-                codeMirrorTheme={editorPrefs.resolvedCodeMirrorTheme}
-                onCodeMirrorThemeChange={editorPrefs.setCodeMirrorTheme}
+                codeMirrorTheme={editorPrefs.resolvedTheme}
+                onCodeMirrorThemeChange={editorPrefs.setAppTheme}
                 themeSaving={editorPrefs.isSavingTheme}
               />
             )}
@@ -546,7 +546,7 @@ export function SnippetFormPage({
           >
             {({ code, language }) => {
               const {
-                resolvedCodeMirrorTheme,
+                resolvedTheme,
                 preferences: {
                   editorFontSize,
                   wordWrap,
@@ -558,10 +558,10 @@ export function SnippetFormPage({
               return (
               <div className="flex-1 min-h-0 overflow-hidden">
                 <CodeMirror
-                  key={`cm-${editorFontSize}-${resolvedCodeMirrorTheme}-${wordWrap}-${showLineNumbers}-${tabSize}-${language}`}
+                  key={`cm-${editorFontSize}-${resolvedTheme}-${wordWrap}-${showLineNumbers}-${tabSize}-${language}`}
                   value={code}
                   height="100%"
-                  theme={resolvedCodeMirrorTheme}
+                  theme={resolvedTheme}
                   extensions={[
                     getLangExtension(
                       language as Parameters<typeof getLangExtension>[0],
@@ -603,7 +603,7 @@ export function SnippetFormPage({
                     height: "100%",
                     fontSize: `${editorFontSize}px`,
                     background:
-                      resolvedCodeMirrorTheme === "dark"
+                      resolvedTheme === "dark"
                         ? "#0f0f0f"
                         : "#fafafa",
                   }}

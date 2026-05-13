@@ -1,11 +1,11 @@
 import type { UserPreferences } from "@/lib/validators/userPreferences";
 
-export type CodeMirrorUiTheme = "light" | "dark";
+export type AppThemeMode = "light" | "dark";
 
-export function resolveCodeMirrorTheme(
+export function resolveAppTheme(
   theme: UserPreferences["theme"],
   prefersDark: boolean,
-): CodeMirrorUiTheme {
+): AppThemeMode {
   if (theme === "system") {
     return prefersDark ? "dark" : "light";
   }

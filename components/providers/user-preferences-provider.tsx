@@ -4,14 +4,15 @@ import {
   createContext,
   useCallback,
   useContext,
+  useLayoutEffect,
   useMemo,
   useSyncExternalStore,
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { apiClient } from "@/lib/api/client";
+import { ApiError, apiClient } from "@/lib/api/client";
 import { fetchUserPreferences } from "@/lib/api/userPreferencesClient";
-import { resolveCodeMirrorTheme } from "@/lib/userPreferences/resolveCodeMirrorTheme";
+import { resolveAppTheme } from "@/lib/userPreferences/resolveAppTheme";
 import {
   normalizeUserPreferencesFromStorage,
   userPreferencesSchema,
@@ -33,7 +34,7 @@ function getPrefersDarkSnapshot() {
   return window.matchMedia("(prefers-color-scheme: dark)").matches;
 }
 
-/** SSR / hydration fallback: match app chrome (dark). */
+/** SSR / hydration fallback: assume dark OS preference. */
 function getServerPrefersDarkSnapshot() {
   return true;
 }
@@ -42,9 +43,9 @@ export type UserPreferencesContextValue = {
   preferences: UserPreferences;
   isLoading: boolean;
   isError: boolean;
-  /** Resolved light/dark for CodeMirror (includes `system` → OS). */
-  resolvedCodeMirrorTheme: "light" | "dark";
-  setCodeMirrorTheme: (theme: "light" | "dark") => void;
+  /** Resolved UI + CodeMirror theme (`system` uses OS preference). */
+  resolvedTheme: "light" | "dark";
+  setAppTheme: (theme: "light" | "dark") => void;
   isSavingTheme: boolean;
 };
 
@@ -56,6 +57,17 @@ const FALLBACK_PREFERENCES: UserPreferences = {
   ...userPreferencesSchema.parse({}),
   theme: "dark",
 };
+
+async function fetchPreferencesOrUndefined(): Promise<UserPreferences | undefined> {
+  try {
+    return await fetchUserPreferences();
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 401) {
+      return undefined;
+    }
+    throw e;
+  }
+}
 
 export function UserPreferencesProvider({
   children,
@@ -71,17 +83,28 @@ export function UserPreferencesProvider({
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["user-preferences"],
-    queryFn: fetchUserPreferences,
+    queryFn: fetchPreferencesOrUndefined,
     staleTime: 30_000,
     retry: 1,
   });
 
   const preferences = data ?? FALLBACK_PREFERENCES;
 
-  const resolvedCodeMirrorTheme = useMemo(
-    () => resolveCodeMirrorTheme(preferences.theme, prefersDark),
+  const resolvedTheme = useMemo(
+    () => resolveAppTheme(preferences.theme, prefersDark),
     [preferences.theme, prefersDark],
   );
+
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    if (resolvedTheme === "dark") {
+      root.classList.add("dark");
+      root.classList.remove("light");
+    } else {
+      root.classList.remove("dark");
+      root.classList.add("light");
+    }
+  }, [resolvedTheme]);
 
   const patchMutation = useMutation({
     mutationFn: async (body: UpdateUserPreferencesInput) => {
@@ -93,7 +116,7 @@ export function UserPreferencesProvider({
     },
     onMutate: async (partial) => {
       await queryClient.cancelQueries({ queryKey: ["user-preferences"] });
-      const previous = queryClient.getQueryData<UserPreferences>([
+      const previous = queryClient.getQueryData<UserPreferences | undefined>([
         "user-preferences",
       ]);
       const base = previous ?? FALLBACK_PREFERENCES;
@@ -115,7 +138,7 @@ export function UserPreferencesProvider({
     },
   });
 
-  const setCodeMirrorTheme = useCallback(
+  const setAppTheme = useCallback(
     (theme: "light" | "dark") => {
       if (preferences.theme === theme) return;
       patchMutation.mutate({ theme });
@@ -128,16 +151,16 @@ export function UserPreferencesProvider({
       preferences,
       isLoading,
       isError,
-      resolvedCodeMirrorTheme,
-      setCodeMirrorTheme,
+      resolvedTheme,
+      setAppTheme,
       isSavingTheme: patchMutation.isPending,
     }),
     [
       preferences,
       isLoading,
       isError,
-      resolvedCodeMirrorTheme,
-      setCodeMirrorTheme,
+      resolvedTheme,
+      setAppTheme,
       patchMutation.isPending,
     ],
   );
@@ -160,11 +183,8 @@ export function useUserPreferences(): UserPreferencesContextValue {
       preferences: FALLBACK_PREFERENCES,
       isLoading: false,
       isError: false,
-      resolvedCodeMirrorTheme: resolveCodeMirrorTheme(
-        FALLBACK_PREFERENCES.theme,
-        prefersDark,
-      ),
-      setCodeMirrorTheme: () => {},
+      resolvedTheme: resolveAppTheme(FALLBACK_PREFERENCES.theme, prefersDark),
+      setAppTheme: () => {},
       isSavingTheme: false,
     };
   }
