@@ -26,7 +26,7 @@ async function createDatabasePool(urlString: string) {
   });
 }
 
-export async function createPrismaClient() {
+export async function createPrismaClient(): Promise<PrismaClient> {
   const url = process.env.DATABASE_URL;
   if (!url) {
     throw new Error("DATABASE_URL must be set to use Prisma with the Postgres adapter.");

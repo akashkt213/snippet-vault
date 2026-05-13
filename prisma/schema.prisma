@@ -11,6 +11,7 @@ model User {
   email        String       @unique
   passwordHash String
   name         String?
+  preferences  UserPreferences?
   collections  Collection[]
   snippets     Snippet[]
   sessions     Session[]
@@ -62,4 +63,18 @@ model Snippet {
   @@index([collectionId])
   @@index([language])
   @@index([isFavorite])
+}
+
+model UserPreferences {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  theme           String   @default("light")
+  accentDensity   String   @default("comfortable")
+  editorFontSize  Int      @default(13)
+  tabSize         Int      @default(2)
+  wordWrap        Boolean  @default(true)
+  showLineNumbers Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }

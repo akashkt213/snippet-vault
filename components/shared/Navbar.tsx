@@ -11,6 +11,7 @@ import {
   Command,
   X,
   Code2,
+  User,
 } from "lucide-react";
 import { fetchSnippetSearch } from "@/lib/api/snippetSearch";
 import { useDebouncedValue } from "@/lib/hooks/useDebouncedValue";
@@ -227,32 +228,45 @@ export default function Navbar() {
       </div>
 
       <div className="flex items-center gap-1 ml-auto">
-          <button
-            key={'Settings'}
-            title={'Settings'}
-            onClick={() => router.push('/user')}
-            className={cn(
-              "w-8 h-8 flex items-center justify-center rounded-lg",
-              "text-[#555555] bg-transparent border-none",
-              "hover:bg-surface-raised hover:text-ink-secondary",
-              "transition-colors duration-120",
-            )}
-          >
-            <Settings size={15} />
-          </button>
-          <button
-            key={'Help'}
-            title={'Help'}
-            onClick={() => setHelpOpen(true)}
-            className={cn(
-              "w-8 h-8 flex items-center justify-center rounded-lg",
-              "text-[#555555] bg-transparent border-none",
-              "hover:bg-surface-raised hover:text-ink-secondary",
-              "transition-colors duration-120",
-            )}
-          >
-            <HelpCircle size={15} />
-          </button>
+        <button
+          key={"Profile"}
+          title={"Profile"}
+          onClick={() => router.push("/user")}
+          className={cn(
+            "w-8 h-8 flex items-center justify-center rounded-lg",
+            "text-[#555555] bg-transparent border-none",
+            "hover:bg-surface-raised hover:text-ink-secondary",
+            "transition-colors duration-120",
+          )}
+        >
+          <User size={15} />
+        </button>
+        <button
+          key={"Settings"}
+          title={"Settings"}
+          onClick={() => router.push("/settings")}
+          className={cn(
+            "w-8 h-8 flex items-center justify-center rounded-lg",
+            "text-[#555555] bg-transparent border-none",
+            "hover:bg-surface-raised hover:text-ink-secondary",
+            "transition-colors duration-120",
+          )}
+        >
+          <Settings size={15} />
+        </button>
+        <button
+          key={"Help"}
+          title={"Help"}
+          onClick={() => setHelpOpen(true)}
+          className={cn(
+            "w-8 h-8 flex items-center justify-center rounded-lg",
+            "text-[#555555] bg-transparent border-none",
+            "hover:bg-surface-raised hover:text-ink-secondary",
+            "transition-colors duration-120",
+          )}
+        >
+          <HelpCircle size={15} />
+        </button>
 
         <div className="w-px h-4.5 bg-border-base mx-1.5" />
 
