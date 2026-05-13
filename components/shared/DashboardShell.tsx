@@ -1,5 +1,6 @@
-import Sidebar from "@/components/shared/Sidebar";
+import { UserPreferencesProvider } from "@/components/providers/user-preferences-provider";
 import Navbar from "@/components/shared/Navbar";
+import Sidebar from "@/components/shared/Sidebar";
 import type { AuthenticatedUser } from "@/lib/auth/session";
 
 type DashboardShellProps = {
@@ -13,7 +14,9 @@ export default function DashboardShell({ user, children }: DashboardShellProps) 
       <Sidebar user={user} />
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <Navbar />
-        <main className="flex-1 overflow-y-auto">{children}</main>
+        <main className="flex-1 overflow-y-auto">
+          <UserPreferencesProvider>{children}</UserPreferencesProvider>
+        </main>
       </div>
     </div>
   );

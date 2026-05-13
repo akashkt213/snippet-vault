@@ -9,6 +9,8 @@ import hljs from "highlight.js";
 
 // ── CodeMirror ────────────────────────────────────────────────────────────────
 import CodeMirror from "@uiw/react-codemirror";
+import { EditorState } from "@codemirror/state";
+import { indentUnit } from "@codemirror/language";
 import { EditorView } from "@codemirror/view";
 import { javascript } from "@codemirror/lang-javascript";
 
@@ -32,10 +34,13 @@ import {
   Users,
   AlertCircle,
   Sparkles,
+  Sun,
+  Moon,
 } from "lucide-react";
 import { getLangExtension } from "@/lib/getLangExtension";
 import { LANGUAGES } from "@/lib/useLanguages";
 import { HLJS_TO_LABEL } from "@/lib/useLanguageToLabel";
+import { useUserPreferences } from "@/components/providers/user-preferences-provider";
 import { ApiError, apiClient } from "@/lib/api/client";
 
 // ── Zod schema ────────────────────────────────────────────────────────────────
@@ -219,10 +224,16 @@ function EditorToolbar({
   language,
   onLanguageChange,
   isAutoDetected,
+  codeMirrorTheme,
+  onCodeMirrorThemeChange,
+  themeSaving,
 }: {
   language: string;
   onLanguageChange: (v: string) => void;
   isAutoDetected: boolean;
+  codeMirrorTheme: "light" | "dark";
+  onCodeMirrorThemeChange: (t: "light" | "dark") => void;
+  themeSaving?: boolean;
 }) {
   return (
     <div className="flex items-center justify-between px-3 py-2 bg-[#111111] border-b border-border-subtle shrink-0">
@@ -244,6 +255,41 @@ function EditorToolbar({
       </div>
 
       <div className="flex items-center gap-2">
+        <div
+          className="flex items-center gap-0.5 rounded-lg border border-border-base bg-surface-default p-0.5"
+          title="Editor appearance"
+        >
+          <button
+            type="button"
+            disabled={themeSaving}
+            title="Light editor"
+            aria-pressed={codeMirrorTheme === "light"}
+            onClick={() => onCodeMirrorThemeChange("light")}
+            className={cn(
+              "rounded p-1.5 transition-colors disabled:opacity-50",
+              codeMirrorTheme === "light"
+                ? "bg-purple-950 text-purple-300"
+                : "text-[#555555] hover:text-ink-secondary",
+            )}
+          >
+            <Sun size={13} />
+          </button>
+          <button
+            type="button"
+            disabled={themeSaving}
+            title="Dark editor"
+            aria-pressed={codeMirrorTheme === "dark"}
+            onClick={() => onCodeMirrorThemeChange("dark")}
+            className={cn(
+              "rounded p-1.5 transition-colors disabled:opacity-50",
+              codeMirrorTheme === "dark"
+                ? "bg-purple-950 text-purple-300"
+                : "text-[#555555] hover:text-ink-secondary",
+            )}
+          >
+            <Moon size={13} />
+          </button>
+        </div>
         {isAutoDetected && (
           <span className="flex items-center gap-1 text-[10px] font-mono text-purple-400 bg-purple-950 border border-[#3d2f6e] px-2 py-0.5 rounded-full">
             <Sparkles size={9} />
@@ -279,6 +325,7 @@ export function SnippetFormPage({
 }: SnippetFormPageProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const editorPrefs = useUserPreferences();
   const isEditMode = mode === "edit";
   const [isAutoDetected, setIsAutoDetected] = useState(false);
   const [detectedLang, setDetectedLang] = useState<string | null>(null);
@@ -483,6 +530,9 @@ export function SnippetFormPage({
                   setIsAutoDetected(false);
                 }}
                 isAutoDetected={isAutoDetected}
+                codeMirrorTheme={editorPrefs.resolvedCodeMirrorTheme}
+                onCodeMirrorThemeChange={editorPrefs.setCodeMirrorTheme}
+                themeSaving={editorPrefs.isSavingTheme}
               />
             )}
           </form.Subscribe>
@@ -494,17 +544,31 @@ export function SnippetFormPage({
               language: s.values.language,
             })}
           >
-            {({ code, language }) => (
+            {({ code, language }) => {
+              const {
+                resolvedCodeMirrorTheme,
+                preferences: {
+                  editorFontSize,
+                  wordWrap,
+                  showLineNumbers,
+                  tabSize,
+                },
+              } = editorPrefs;
+              const indent = " ".repeat(tabSize);
+              return (
               <div className="flex-1 min-h-0 overflow-hidden">
                 <CodeMirror
+                  key={`cm-${editorFontSize}-${resolvedCodeMirrorTheme}-${wordWrap}-${showLineNumbers}-${tabSize}-${language}`}
                   value={code}
                   height="100%"
-                  theme="dark"
+                  theme={resolvedCodeMirrorTheme}
                   extensions={[
                     getLangExtension(
                       language as Parameters<typeof getLangExtension>[0],
                     ) ?? javascript(),
-                    EditorView.lineWrapping,
+                    EditorState.tabSize.of(tabSize),
+                    indentUnit.of(indent),
+                    ...(wordWrap ? [EditorView.lineWrapping] : []),
                   ]}
                   onChange={(val) => {
                     form.setFieldValue("code", val);
@@ -520,7 +584,7 @@ export function SnippetFormPage({
                     });
                   }}
                   basicSetup={{
-                    lineNumbers: true,
+                    lineNumbers: showLineNumbers,
                     highlightActiveLine: true,
                     foldGutter: false,
                     dropCursor: false,
@@ -537,12 +601,16 @@ export function SnippetFormPage({
                   }}
                   style={{
                     height: "100%",
-                    fontSize: "14px",
-                    background: "#0f0f0f",
+                    fontSize: `${editorFontSize}px`,
+                    background:
+                      resolvedCodeMirrorTheme === "dark"
+                        ? "#0f0f0f"
+                        : "#fafafa",
                   }}
                 />
               </div>
-            )}
+              );
+            }}
           </form.Subscribe>
 
           {/* Code error */}
