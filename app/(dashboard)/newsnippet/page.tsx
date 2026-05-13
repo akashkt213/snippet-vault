@@ -36,7 +36,6 @@ import {
 import { getLangExtension } from "@/lib/getLangExtension";
 import { LANGUAGES } from "@/lib/useLanguages";
 import { HLJS_TO_LABEL } from "@/lib/useLanguageToLabel";
-import { midnightTheme } from "@/lib/editorTheme";
 import { ApiError, apiClient } from "@/lib/api/client";
 
 // ── Zod schema ────────────────────────────────────────────────────────────────
@@ -500,7 +499,7 @@ export function SnippetFormPage({
                 <CodeMirror
                   value={code}
                   height="100%"
-                  theme={midnightTheme}
+                  theme="dark"
                   extensions={[
                     getLangExtension(
                       language as Parameters<typeof getLangExtension>[0],
@@ -536,7 +535,11 @@ export function SnippetFormPage({
                     highlightSelectionMatches: false,
                     searchKeymap: false,
                   }}
-                  style={{ height: "100%" }}
+                  style={{
+                    height: "100%",
+                    fontSize: "14px",
+                    background: "#0f0f0f",
+                  }}
                 />
               </div>
             )}

@@ -27,7 +27,7 @@ export function CodeViewer({
         foldGutter: false,
       }}
       style={{
-        fontSize: "11px",
+        fontSize: "14px",
         background: "#0f0f0f",
       }}
     />
