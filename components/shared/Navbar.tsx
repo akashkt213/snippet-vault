@@ -6,7 +6,6 @@ import { useQuery } from "@tanstack/react-query";
 import {
   Search,
   Plus,
-  Bell,
   Settings,
   HelpCircle,
   Command,
@@ -17,6 +16,8 @@ import { fetchSnippetSearch } from "@/lib/api/snippetSearch";
 import { useDebouncedValue } from "@/lib/hooks/useDebouncedValue";
 import { cn } from "@/lib/utils";
 import CommandPalette from "./CommandPalette";
+import HelpDialog from "./HelpDialog";
+import { useHelpDialog } from "@/lib/store/help-dialog";
 
 const LANG: Record<string, { bg: string; text: string }> = {
   REACT: { bg: "#1a2340", text: "#93c5fd" },
@@ -31,6 +32,7 @@ const LANG: Record<string, { bg: string; text: string }> = {
 export default function Navbar() {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
+  const { setIsOpen: setHelpOpen } = useHelpDialog();
 
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -53,19 +55,33 @@ export default function Navbar() {
         e.preventDefault();
         setPaletteOpen((prev) => !prev);
       }
+      if ((e.metaKey || e.ctrlKey) && e.key === "n") {
+        e.preventDefault();
+        router.push("/newsnippet");
+      }
+      if (e.key === "/" && !(e.metaKey || e.ctrlKey || e.altKey)) {
+        const target = e.target as HTMLElement | null;
+        const isTypingTarget =
+          target instanceof HTMLInputElement ||
+          target instanceof HTMLTextAreaElement ||
+          target?.getAttribute("contenteditable") === "true";
+
+        if (!isTypingTarget) {
+          e.preventDefault();
+          inputRef.current?.focus();
+          setOpen(true);
+        }
+      }
       if (e.key === "Escape") {
         setQuery("");
         setOpen(false);
         inputRef.current?.blur();
+        setHelpOpen(false);
       }
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, []);
-
-  useEffect(() => {
-    setSelectedIdx(0);
-  }, [debouncedQuery, results.length]);
+  }, [router, setHelpOpen]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (!showDrop) return;
@@ -101,7 +117,10 @@ export default function Navbar() {
             ref={inputRef}
             type="text"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setSelectedIdx(0);
+            }}
             onFocus={() => setOpen(true)}
             onBlur={() => setTimeout(() => setOpen(false), 150)}
             onKeyDown={handleKeyDown}
@@ -208,14 +227,10 @@ export default function Navbar() {
       </div>
 
       <div className="flex items-center gap-1 ml-auto">
-        {[
-          // { icon: Bell, title: "Notifications" },
-          { icon: Settings, title: "Settings" },
-          { icon: HelpCircle, title: "Help" },
-        ].map(({ icon: Icon, title }) => (
           <button
-            key={title}
-            title={title}
+            key={'Settings'}
+            title={'Settings'}
+            onClick={() => router.push('/user')}
             className={cn(
               "w-8 h-8 flex items-center justify-center rounded-lg",
               "text-[#555555] bg-transparent border-none",
@@ -223,9 +238,21 @@ export default function Navbar() {
               "transition-colors duration-120",
             )}
           >
-            <Icon size={15} />
+            <Settings size={15} />
           </button>
-        ))}
+          <button
+            key={'Help'}
+            title={'Help'}
+            onClick={() => setHelpOpen(true)}
+            className={cn(
+              "w-8 h-8 flex items-center justify-center rounded-lg",
+              "text-[#555555] bg-transparent border-none",
+              "hover:bg-surface-raised hover:text-ink-secondary",
+              "transition-colors duration-120",
+            )}
+          >
+            <HelpCircle size={15} />
+          </button>
 
         <div className="w-px h-4.5 bg-border-base mx-1.5" />
 
@@ -245,6 +272,7 @@ export default function Navbar() {
         </button>
       </div>
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
+      <HelpDialog />
     </header>
   );
 }
