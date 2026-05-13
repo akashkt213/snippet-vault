@@ -68,7 +68,7 @@ export default function Sidebar({ user }: SidebarProps) {
                 // states
                 active
                   ? "bg-purple-950 text-purple-300"
-                  : "hover:bg-[#161616] hover:text-ink-secondary"
+                  : "hover:bg-surface-hover hover:text-ink-secondary"
               )}
             >
               <Icon size={15} className="shrink-0 text-inherit" />
@@ -101,7 +101,7 @@ export default function Sidebar({ user }: SidebarProps) {
             "transition-colors duration-120 ease-in-out",
             pathname.startsWith("/user")
               ? "bg-purple-950 text-purple-300"
-              : "hover:bg-[#161616] hover:text-ink-secondary",
+              : "hover:bg-surface-hover hover:text-ink-secondary",
           )}
         >
           <UserRound size={15} className="shrink-0 text-inherit" />

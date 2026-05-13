@@ -115,7 +115,7 @@ export default function SnippetCard({
     "flex items-center justify-center p-1.5 rounded-md",
     "border transition-all duration-150",
     "bg-border-subtle border-border-base text-ink-muted",
-    "hover:border-[#3d2f6e] hover:text-purple-300",
+    "hover:border-border-accent hover:bg-surface-hover hover:text-purple-600",
   );
 
   return (
@@ -125,8 +125,8 @@ export default function SnippetCard({
         // base card
         "group flex flex-col bg-surface-default border border-border-base rounded-xl overflow-hidden",
         "cursor-pointer transition-all duration-200",
-        // hover — lift + accent border
-        "hover:border-[#3d2f6e] hover:bg-[#161616]",
+        // hover — subtle lift using theme tokens (works in light + dark)
+        "hover:border-border-accent hover:bg-surface-hover",
         className,
       )}
     >
