@@ -130,7 +130,7 @@ export default function Navbar() {
             spellCheck={false}
             className={cn(
               "flex-1 py-2.5 bg-transparent border-none outline-none",
-              "text-[12px] text-[#cccccc] placeholder:text-[#444444]",
+              "text-[12px]  text-ink-primary placeholder:text-ink-muted",
               "font-mono",
             )}
           />

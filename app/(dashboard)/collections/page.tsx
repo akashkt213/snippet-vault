@@ -461,14 +461,6 @@ export default function CollectionPage() {
           </form>
         </SheetContent>
       </Sheet>
-
-      {/* Floating Button */}
-      <Button
-        size="icon"
-        className="fixed bottom-6 right-6 rounded-full bg-purple-600 hover:bg-purple-400 shadow-lg"
-      >
-        <Plus />
-      </Button>
       {dialog}
     </div>
   );
