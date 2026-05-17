@@ -1,8 +1,7 @@
-import { redirect } from "next/navigation";
-
+import { HomePage } from "@/components/marketing/home-page";
 import { getAuthenticatedUser } from "@/lib/auth/session";
 
 export default async function Home() {
   const user = await getAuthenticatedUser();
-  redirect(user ? "/dashboard" : "/login");
+  return <HomePage user={user} />;
 }

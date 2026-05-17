@@ -58,12 +58,12 @@ const FALLBACK_PREFERENCES: UserPreferences = {
   theme: "dark",
 };
 
-async function fetchPreferencesOrUndefined(): Promise<UserPreferences | undefined> {
+async function fetchPreferencesOrFallback(): Promise<UserPreferences> {
   try {
     return await fetchUserPreferences();
   } catch (e) {
     if (e instanceof ApiError && e.status === 401) {
-      return undefined;
+      return FALLBACK_PREFERENCES;
     }
     throw e;
   }
@@ -83,7 +83,7 @@ export function UserPreferencesProvider({
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["user-preferences"],
-    queryFn: fetchPreferencesOrUndefined,
+    queryFn: fetchPreferencesOrFallback,
     staleTime: 30_000,
     retry: 1,
   });
@@ -116,7 +116,7 @@ export function UserPreferencesProvider({
     },
     onMutate: async (partial) => {
       await queryClient.cancelQueries({ queryKey: ["user-preferences"] });
-      const previous = queryClient.getQueryData<UserPreferences | undefined>([
+      const previous = queryClient.getQueryData<UserPreferences>([
         "user-preferences",
       ]);
       const base = previous ?? FALLBACK_PREFERENCES;
@@ -127,11 +127,10 @@ export function UserPreferencesProvider({
       return { previous };
     },
     onError: (_err, _partial, context) => {
-      if (context?.previous !== undefined) {
-        queryClient.setQueryData(["user-preferences"], context.previous);
-      } else {
-        void queryClient.invalidateQueries({ queryKey: ["user-preferences"] });
-      }
+      queryClient.setQueryData(
+        ["user-preferences"],
+        context?.previous ?? FALLBACK_PREFERENCES,
+      );
     },
     onSuccess: (next) => {
       queryClient.setQueryData(["user-preferences"], next);

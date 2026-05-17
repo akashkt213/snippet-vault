@@ -1,10 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Filter, Code2 } from "lucide-react";
+import { Code2 } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import SnippetCard, {
   Language,
@@ -74,15 +74,11 @@ async function fetchSnippets(): Promise<SnippetApiItem[]> {
   return json.data ?? [];
 }
 
-// ── Filter tabs ───────────────────────────────────────────────────────────────
-const FILTERS: { label: string; value: string }[] = [
-  { label: "All", value: "all" },
-  { label: "Starred", value: "starred" },
-  { label: "React", value: "REACT" },
-  { label: "JS / TS", value: "JS" },
-  { label: "Java", value: "JAVA" },
-  { label: "DevOps", value: "YAML" },
-];
+type DashboardSnippet = Snippet & { languageKey: string };
+
+function buildLanguageFilterValue(language: string) {
+  return `lang:${language}`;
+}
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function DashboardPage() {
@@ -118,7 +114,7 @@ export default function DashboardPage() {
   const isLoading = isSearching ? isSearchLoading : isListLoading;
   const isError = isSearching ? isSearchError : isListError;
 
-  const snippets = useMemo<Snippet[]>(
+  const snippets = useMemo<DashboardSnippet[]>(
     () =>
       sourceSnippets.map((item) => ({
         id: item.id,
@@ -126,12 +122,35 @@ export default function DashboardPage() {
         description: item.description ?? "",
         code: item.code,
         language: normalizeLanguage(item.language),
+        languageKey: item.language.trim(),
         tags: item.tags ?? [],
         starred: item.isFavorite,
         addedAt: formatAddedAt(item.createdAt),
       })),
     [sourceSnippets],
   );
+
+  const filters = useMemo(() => {
+    const languageCounts = new Map<string, number>();
+    for (const item of sourceSnippets) {
+      const language = item.language.trim();
+      if (!language) continue;
+      languageCounts.set(language, (languageCounts.get(language) ?? 0) + 1);
+    }
+
+    const languageFilters = [...languageCounts.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([language, count]) => ({
+        label: count > 1 ? `${language} (${count})` : language,
+        value: buildLanguageFilterValue(language),
+      }));
+
+    return [
+      { label: "All", value: "all" },
+      { label: "Starred", value: "starred" },
+      ...languageFilters,
+    ];
+  }, [sourceSnippets]);
 
   const favoriteMutation = useMutation({
     mutationFn: ({ id, isFavorite }: { id: string; isFavorite: boolean }) =>
@@ -185,11 +204,20 @@ export default function DashboardPage() {
     });
   };
 
+  useEffect(() => {
+    if (activeFilter === "all" || activeFilter === "starred") return;
+    if (!filters.some((f) => f.value === activeFilter)) {
+      setFilter("all");
+    }
+  }, [activeFilter, filters]);
+
   const filtered = snippets.filter((s) => {
     if (activeFilter === "all") return true;
     if (activeFilter === "starred") return s.starred;
-    if (activeFilter === "JS") return s.language === "JS" || s.language === "TS";
-    return s.language === activeFilter;
+    if (activeFilter.startsWith("lang:")) {
+      return s.languageKey === activeFilter.slice("lang:".length);
+    }
+    return true;
   });
 
   return (
@@ -206,17 +234,11 @@ export default function DashboardPage() {
             {" "} &middot; Sorted by recently added
           </p>
         </div>
-
-        {/* Filter button */}
-        <button className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface-default border border-border-base text-ink-muted text-[11px] font-mono hover:border-[#3d2f6e] hover:text-purple-300 transition-colors duration-150">
-          <Filter size={12} />
-          FILTER
-        </button>
       </div>
 
       {/* ── Filter tabs ──────────────────────── */}
       <div className="flex items-center gap-1.5 mb-6 flex-wrap">
-        {FILTERS.map((f) => (
+        {filters.map((f) => (
           <button
             key={f.value}
             onClick={() => setFilter(f.value)}

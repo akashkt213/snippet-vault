@@ -84,6 +84,14 @@ type SnippetFormPageProps = {
 };
 
 // ── Field error ───────────────────────────────────────────────────────────────
+function formatFieldError(error: unknown): string | undefined {
+  if (typeof error === "string") return error;
+  if (error && typeof error === "object" && "message" in error) {
+    return String(error.message);
+  }
+  return undefined;
+}
+
 function FieldError({ message }: { message?: string }) {
   if (!message) return null;
   return (
@@ -304,6 +312,61 @@ export function SnippetFormPage({
     enabled: isEditMode && Boolean(snippetId),
   });
 
+  const saveSnippetMutation = useMutation({
+    mutationFn: async (value: z.infer<typeof snippetSchema>) => {
+      const payload = {
+        title: value.title,
+        description: value.description?.trim() || undefined,
+        code: value.code,
+        language: value.language,
+        collectionId: value.collectionId,
+        tags: value.tags,
+      };
+
+      if (isEditMode && snippetId) {
+        await apiClient.patch(
+          `/api/snippets/${encodeURIComponent(snippetId)}`,
+          payload,
+          { timeoutMs: 12_000, retries: 1 },
+        );
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ["snippet", snippetId] }),
+          queryClient.invalidateQueries({ queryKey: ["snippets"] }),
+          queryClient.invalidateQueries({ queryKey: ["collection-snippets"] }),
+          queryClient.invalidateQueries({ queryKey: ["collections"] }),
+        ]);
+        return { mode: "edit" as const, snippetId };
+      }
+
+      await apiClient.post<CreateSnippetResponse>(
+        "/api/snippets",
+        { ...payload, isFavorite: false },
+        { timeoutMs: 12_000, retries: 1 },
+      );
+      return { mode: "create" as const };
+    },
+    onSuccess: (result) => {
+      if (result.mode === "edit") {
+        router.push(`/snippets/${result.snippetId}`);
+      } else {
+        router.push("/dashboard");
+      }
+    },
+    onError: (error) => {
+      if (error instanceof ApiError && error.status === 400) {
+        setSubmitError(
+          "Invalid snippet data. Please review title, code, and collection.",
+        );
+        return;
+      }
+      setSubmitError(
+        isEditMode
+          ? "Failed to update snippet. Please try again."
+          : "Failed to save snippet. Please try again.",
+      );
+    },
+  });
+
   const form = useForm({
     defaultValues: {
       title: initialTitle ?? "",
@@ -322,53 +385,7 @@ export function SnippetFormPage({
         setSubmitError("Please fix the highlighted fields before saving.");
         return;
       }
-
-      try {
-        const payload = {
-          title: parsed.data.title,
-          description: parsed.data.description?.trim() || undefined,
-          code: parsed.data.code,
-          language: parsed.data.language,
-          collectionId: parsed.data.collectionId,
-          tags: parsed.data.tags,
-        };
-
-        if (isEditMode && snippetId) {
-          await apiClient.patch(
-            `/api/snippets/${encodeURIComponent(snippetId)}`,
-            payload,
-            { timeoutMs: 12_000, retries: 1 },
-          );
-          await Promise.all([
-            queryClient.invalidateQueries({ queryKey: ["snippet", snippetId] }),
-            queryClient.invalidateQueries({ queryKey: ["snippets"] }),
-            queryClient.invalidateQueries({ queryKey: ["collection-snippets"] }),
-            queryClient.invalidateQueries({ queryKey: ["collections"] }),
-          ]);
-          router.push(`/snippets/${snippetId}`);
-          return;
-        }
-
-        await apiClient.post<CreateSnippetResponse>(
-          "/api/snippets",
-          {
-            ...payload,
-            isFavorite: false,
-          },
-          { timeoutMs: 12_000, retries: 1 },
-        );
-        router.push("/dashboard");
-      } catch (error) {
-        if (error instanceof ApiError && error.status === 400) {
-          setSubmitError("Invalid snippet data. Please review title, code, and collection.");
-          return;
-        }
-        setSubmitError(
-          isEditMode
-            ? "Failed to update snippet. Please try again."
-            : "Failed to save snippet. Please try again.",
-        );
-      }
+      saveSnippetMutation.mutate(parsed.data);
     },
   });
 
@@ -432,38 +449,6 @@ export function SnippetFormPage({
         <h1 className="text-[13px] font-semibold text-ink-primary font-mono tracking-wide">
           {isEditMode ? "Edit Snippet" : "Add New Snippet"}
         </h1>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => router.back()}
-            className="px-3 py-1.5 rounded-lg text-[11px] font-mono text-ink-muted border border-border-base hover:border-border-hover hover:text-ink-secondary transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={form.handleSubmit}
-            disabled={form.state.isSubmitting}
-            className={cn(
-              "flex items-center gap-2 px-4 py-1.5 rounded-lg text-[11px] font-mono font-medium",
-              "bg-purple-950 border border-[#3d2f6e] text-purple-300",
-              "hover:bg-[#2a1a4a] hover:border-purple-600 hover:text-[#ddd6fe]",
-              "active:scale-[0.98] transition-all duration-150",
-              "disabled:opacity-50 disabled:cursor-not-allowed",
-            )}
-          >
-            {form.state.isSubmitting ? (
-              <Loader2 size={12} className="animate-spin" />
-            ) : (
-              <Save size={12} />
-            )}
-            {form.state.isSubmitting
-              ? "Saving..."
-              : isEditMode
-                ? "Save Changes"
-                : "Save Snippet"}
-          </button>
-        </div>
       </div>
       {submitError && (
         <div className="px-5 py-2 border-b border-border-subtle bg-red-950/20">
@@ -513,6 +498,7 @@ export function SnippetFormPage({
                   key={`cm-${editorFontSize}-${resolvedTheme}-${wordWrap}-${showLineNumbers}-${tabSize}-${language}`}
                   value={code}
                   height="100%"
+                  placeholder="Paste your fav code here..."
                   theme={resolvedTheme}
                   extensions={[
                     getLangExtension(
@@ -570,7 +556,9 @@ export function SnippetFormPage({
             {(field) =>
               field.state.meta.errors?.length ? (
                 <div className="px-4 py-2 bg-surface-base border-t border-border-subtle">
-                  <FieldError message={field.state.meta.errors[0]} />
+                  <FieldError
+                    message={formatFieldError(field.state.meta.errors[0])}
+                  />
                 </div>
               ) : null
             }
@@ -625,7 +613,9 @@ export function SnippetFormPage({
                       field.state.meta.errors?.length && "border-red-500/50",
                     )}
                   />
-                  <FieldError message={field.state.meta.errors?.toString()} />
+                  <FieldError
+                    message={formatFieldError(field.state.meta.errors[0])}
+                  />
                 </div>
               )}
             </form.Field>
@@ -653,21 +643,31 @@ export function SnippetFormPage({
                       "hover:border-border-hover transition-colors",
                     )}
                   />
-                  <FieldError message={field.state.meta.errors?.[0]} />
+                  <FieldError
+                    message={formatFieldError(field.state.meta.errors[0])}
+                  />
                 </div>
               )}
             </form.Field>
 
             {/* Collection */}
-            <form.Field name="collectionId">
+            <form.Field
+              name="collectionId"
+              validators={{
+                onSubmit: z.string().min(1, "Collection is required"),
+              }}
+            >
               {(field) => (
                 <div>
                   <label className="block text-[10px] font-semibold font-mono text-ink-muted tracking-[0.08em] uppercase mb-1.5">
                     Collection
                   </label>
                   <Select
-                    value={field.state.value}
-                    onValueChange={field.handleChange}
+                    value={field.state.value || undefined}
+                    onValueChange={(value) => {
+                      field.handleChange(value);
+                      field.handleBlur();
+                    }}
                   >
                     <SelectTrigger
                       className={cn(
@@ -675,6 +675,7 @@ export function SnippetFormPage({
                         "hover:border-border-hover focus:ring-1 focus:ring-[#3d2f6e] focus:border-[#3d2f6e]",
                         "transition-colors [&>svg]:text-[#555555]",
                         !field.state.value && "[&>span]:text-ink-disabled",
+                        field.state.meta.errors?.length && "border-red-500/50",
                       )}
                     >
                       <SelectValue placeholder="Select collection..." />
@@ -691,7 +692,9 @@ export function SnippetFormPage({
                       ))}
                     </SelectContent>
                   </Select>
-                  <FieldError message={field.state.meta.errors?.[0]} />
+                  <FieldError
+                    message={formatFieldError(field.state.meta.errors[0])}
+                  />
                 </div>
               )}
             </form.Field>
@@ -721,7 +724,7 @@ export function SnippetFormPage({
                           field.state.value.filter((x) => x !== t),
                         )
                       }
-                      error={field.state.meta.errors?.[0]}
+                      error={formatFieldError(field.state.meta.errors[0])}
                     />
                   </div>
                   <p className="text-[10px] text-ink-disabled font-mono mt-1">
@@ -745,7 +748,7 @@ export function SnippetFormPage({
             <button
               type="button"
               onClick={form.handleSubmit}
-              disabled={form.state.isSubmitting}
+              disabled={saveSnippetMutation.isPending}
               className={cn(
                 "flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg",
                 "text-[11px] font-mono font-semibold uppercase tracking-wider",
@@ -755,12 +758,12 @@ export function SnippetFormPage({
                 "disabled:opacity-50 disabled:cursor-not-allowed",
               )}
             >
-              {form.state.isSubmitting ? (
+              {saveSnippetMutation.isPending ? (
                 <Loader2 size={11} className="animate-spin" />
               ) : (
                 <Save size={11} />
               )}
-              {form.state.isSubmitting
+              {saveSnippetMutation.isPending
                 ? "Saving..."
                 : isEditMode
                   ? "Save Changes"
