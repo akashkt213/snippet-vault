@@ -30,12 +30,8 @@ import {
   X,
   Save,
   Loader2,
-  Lock,
-  Users,
   AlertCircle,
   Sparkles,
-  Sun,
-  Moon,
 } from "lucide-react";
 import { getLangExtension } from "@/lib/getLangExtension";
 import { LANGUAGES } from "@/lib/useLanguages";
@@ -224,20 +220,14 @@ function EditorToolbar({
   language,
   onLanguageChange,
   isAutoDetected,
-  codeMirrorTheme,
-  onCodeMirrorThemeChange,
-  themeSaving,
 }: {
   language: string;
   onLanguageChange: (v: string) => void;
   isAutoDetected: boolean;
-  codeMirrorTheme: "light" | "dark";
-  onCodeMirrorThemeChange: (t: "light" | "dark") => void;
-  themeSaving?: boolean;
 }) {
   return (
     <div className="flex items-center justify-between px-3 py-2 bg-surface-shell border-b border-border-subtle shrink-0">
-      <div className="flex items-center gap-1">
+      {/* <div className="flex items-center gap-1">
         <button
           type="button"
           className="p-1.5 rounded text-[#444444] hover:text-[#888888] hover:bg-surface-raised transition-colors"
@@ -252,44 +242,9 @@ function EditorToolbar({
         >
           <Redo2 size={13} />
         </button>
-      </div>
+      </div> */}
 
-      <div className="flex items-center gap-2">
-        <div
-          className="flex items-center gap-0.5 rounded-lg border border-border-base bg-surface-default p-0.5"
-          title="Editor appearance"
-        >
-          <button
-            type="button"
-            disabled={themeSaving}
-            title="Light editor"
-            aria-pressed={codeMirrorTheme === "light"}
-            onClick={() => onCodeMirrorThemeChange("light")}
-            className={cn(
-              "rounded p-1.5 transition-colors disabled:opacity-50",
-              codeMirrorTheme === "light"
-                ? "bg-purple-950 text-purple-300"
-                : "text-[#555555] hover:text-ink-secondary",
-            )}
-          >
-            <Sun size={13} />
-          </button>
-          <button
-            type="button"
-            disabled={themeSaving}
-            title="Dark editor"
-            aria-pressed={codeMirrorTheme === "dark"}
-            onClick={() => onCodeMirrorThemeChange("dark")}
-            className={cn(
-              "rounded p-1.5 transition-colors disabled:opacity-50",
-              codeMirrorTheme === "dark"
-                ? "bg-purple-950 text-purple-300"
-                : "text-[#555555] hover:text-ink-secondary",
-            )}
-          >
-            <Moon size={13} />
-          </button>
-        </div>
+      <div className="flex items-center gap-2 ml-auto">
         {isAutoDetected && (
           <span className="flex items-center gap-1 text-[10px] font-mono text-purple-400 bg-purple-950 border border-[#3d2f6e] px-2 py-0.5 rounded-full">
             <Sparkles size={9} />
@@ -530,9 +485,6 @@ export function SnippetFormPage({
                   setIsAutoDetected(false);
                 }}
                 isAutoDetected={isAutoDetected}
-                codeMirrorTheme={editorPrefs.resolvedTheme}
-                onCodeMirrorThemeChange={editorPrefs.setAppTheme}
-                themeSaving={editorPrefs.isSavingTheme}
               />
             )}
           </form.Subscribe>

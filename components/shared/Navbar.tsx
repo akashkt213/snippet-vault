@@ -12,7 +12,10 @@ import {
   X,
   Code2,
   User,
+  Sun,
+  Moon,
 } from "lucide-react";
+import { useUserPreferences } from "@/components/providers/user-preferences-provider";
 import { fetchSnippetSearch } from "@/lib/api/snippetSearch";
 import { useDebouncedValue } from "@/lib/hooks/useDebouncedValue";
 import { cn } from "@/lib/utils";
@@ -34,6 +37,7 @@ export default function Navbar() {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const { setIsOpen: setHelpOpen } = useHelpDialog();
+  const { resolvedTheme, setAppTheme, isSavingTheme } = useUserPreferences();
 
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -228,6 +232,41 @@ export default function Navbar() {
       </div>
 
       <div className="flex items-center gap-1 ml-auto">
+        <div
+          className="flex items-center gap-0.5 rounded-lg border border-border-base bg-surface-default p-0.5 mr-1"
+          title="Editor appearance"
+        >
+          <button
+            type="button"
+            disabled={isSavingTheme}
+            title="Light editor"
+            aria-pressed={resolvedTheme === "light"}
+            onClick={() => setAppTheme("light")}
+            className={cn(
+              "rounded p-1.5 transition-colors disabled:opacity-50",
+              resolvedTheme === "light"
+                ? "bg-purple-950 text-purple-300"
+                : "text-[#555555] hover:text-ink-secondary",
+            )}
+          >
+            <Sun size={13} />
+          </button>
+          <button
+            type="button"
+            disabled={isSavingTheme}
+            title="Dark editor"
+            aria-pressed={resolvedTheme === "dark"}
+            onClick={() => setAppTheme("dark")}
+            className={cn(
+              "rounded p-1.5 transition-colors disabled:opacity-50",
+              resolvedTheme === "dark"
+                ? "bg-purple-950 text-purple-300"
+                : "text-[#555555] hover:text-ink-secondary",
+            )}
+          >
+            <Moon size={13} />
+          </button>
+        </div>
         <button
           key={"Profile"}
           title={"Profile"}
